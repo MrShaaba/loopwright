@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { bootGame, type Controller } from './bridge';
   import HelpOverlay from './components/HelpOverlay.svelte';
+  import HowToPlay from './components/HowToPlay.svelte';
   import Inspector from './components/Inspector.svelte';
   import LoadingScreen from './components/LoadingScreen.svelte';
   import Pops from './components/Pops.svelte';
@@ -56,6 +57,9 @@
     {/if}
     {#if ui.helpOpen}
       <HelpOverlay {controller} />
+    {/if}
+    {#if ui.howToOpen}
+      <HowToPlay close={controller.closeHowToPlay} />
     {/if}
     <Toast />
   </div>

@@ -12,6 +12,7 @@ export interface UiState {
   theme: { id: string; name: string; tagline: string };
   track: TrackSummary;
   helpOpen: boolean;
+  howToOpen: boolean;
   reducedMotion: boolean;
   toast: { text: string; id: number };
 }
@@ -28,6 +29,7 @@ export const ui: UiState = $state({
   theme: { id: '', name: '', tagline: '' },
   track: { name: '', length: 0, sections: 0, seed: 1 },
   helpOpen: false,
+  howToOpen: false,
   reducedMotion: false,
   toast: { text: '', id: 0 },
 });

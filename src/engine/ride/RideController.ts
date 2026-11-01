@@ -258,11 +258,15 @@ export class RideController {
   }
 
   togglePause(): boolean {
-    if (!this.active) return false;
-    this.paused = !this.paused;
-    if (this.paused) this.audio.silence();
-    this.emitStatus();
+    this.setPaused(!this.paused);
     return this.paused;
+  }
+
+  setPaused(paused: boolean): void {
+    if (!this.active || this.paused === paused) return;
+    this.paused = paused;
+    if (paused) this.audio.silence();
+    this.emitStatus();
   }
 
   toggleMute(): boolean {

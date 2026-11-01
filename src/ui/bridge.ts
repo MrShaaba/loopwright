@@ -2,7 +2,13 @@ import type { CameraMode, CameraPreset } from '../engine/camera/CameraRig';
 import { Game, type GameMode } from '../engine/Game';
 import type { KeyBinding } from '../engine/input/Keys';
 import { trackFromHash } from '../engine/save/codec';
-import { loadPrefs, loadSavedTrack, savePrefs } from '../engine/save/storage';
+import {
+  hasSeenHowToPlay,
+  loadPrefs,
+  loadSavedTrack,
+  markHowToPlaySeen,
+  savePrefs,
+} from '../engine/save/storage';
 import { DEFAULT_STARTER_ID, getStarter, STARTERS } from '../engine/starters';
 import { DEFAULT_THEME_ID, getTheme, hasTheme, listThemes } from '../engine/theme';
 import { listSectionDefs } from '../engine/track/sections';
@@ -40,6 +46,8 @@ export interface Controller {
   restartRide: () => void;
   steer: (input: number) => void;
   dismissSummary: () => void;
+  openHowToPlay: () => void;
+  closeHowToPlay: () => void;
   setPlayMode: (mode: 'game' | 'time' | 'cruise') => void;
   toggleItems: () => void;
   reshuffleItems: () => void;
@@ -121,6 +129,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     }),
     game.events.on('mode', (mode) => {
       ui.mode = mode;
+      // The first ride in Game mode opens the how-to card and holds the ball until it is read.
+      if (mode === 'ride' && game.game.mode === 'game' && !hasSeenHowToPlay()) openHowToPlay();
     }),
     game.events.on('toast', (text) => {
       ui.toast = { text, id: ui.toast.id + 1 };
@@ -242,6 +252,16 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   const toggleHelp = (): void => {
     ui.helpOpen = !ui.helpOpen;
   };
+  const openHowToPlay = (): void => {
+    ui.howToOpen = true;
+    game.ride.setPaused(true);
+  };
+  const closeHowToPlay = (): void => {
+    if (!ui.howToOpen) return;
+    ui.howToOpen = false;
+    markHowToPlaySeen();
+    game.ride.setPaused(false);
+  };
   game.keys.bind({
     scope: 'global',
     combo: 'shift+Slash',
@@ -259,7 +279,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     combo: 'Escape',
     label: 'Close the shortcuts panel, or leave the ride',
     handler: () => {
-      if (ui.helpOpen) ui.helpOpen = false;
+      if (ui.howToOpen) closeHowToPlay();
+      else if (ui.helpOpen) ui.helpOpen = false;
       else if (edit.addMenuOpen) edit.addMenuOpen = false;
       else if (edit.checksOpen) edit.checksOpen = false;
       else if (game.mode === 'ride') game.requestMode('edit');
@@ -267,6 +288,16 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     },
   });
 
+  game.modalOpen = () => ui.howToOpen;
+  for (const combo of ['Enter', 'Space']) {
+    game.keys.bind({
+      scope: 'ride',
+      combo,
+      label: 'Close the how-to-play card',
+      when: () => ui.howToOpen,
+      handler: closeHowToPlay,
+    });
+  }
   game.start();
   ui.phase = 'ready';
   if (shared) game.toast(`Opened a shared track: ${shared.name}`);
@@ -358,6 +389,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     dismissSummary: () => {
       play.summary = null;
     },
+    openHowToPlay,
+    closeHowToPlay,
     steer: (input) => game.ride.setSteer(input),
     setPlayMode: (mode) => {
       game.setPlayMode(mode);

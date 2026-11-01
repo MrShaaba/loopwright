@@ -3,6 +3,7 @@ import { parseTrackDoc, type TrackDoc } from './schema';
 const TRACK_KEY = 'loopwright.track.v2';
 const PREFS_KEY = 'loopwright.prefs.v1';
 const BEST_LAPS_KEY = 'loopwright.bestLaps.v1';
+const HOWTO_KEY = 'loopwright.howto.v1';
 const MAX_BEST_LAPS = 60;
 
 export interface Prefs {
@@ -84,4 +85,21 @@ export function saveBestLap(key: string, seconds: number): boolean {
   const entries = Object.entries(laps).slice(-(MAX_BEST_LAPS - 1));
   entries.push([key, seconds]);
   return write(BEST_LAPS_KEY, Object.fromEntries(entries));
+}
+
+/** Whether the first-ride card has been dismissed before. */
+export function hasSeenHowToPlay(): boolean {
+  try {
+    return localStorage.getItem(HOWTO_KEY) === 'seen';
+  } catch {
+    return false;
+  }
+}
+
+export function markHowToPlaySeen(): void {
+  try {
+    localStorage.setItem(HOWTO_KEY, 'seen');
+  } catch {
+    // Nothing to do: the card will show again next time.
+  }
 }

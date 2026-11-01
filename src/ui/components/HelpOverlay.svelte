@@ -42,7 +42,18 @@
   <div class="sheet panel" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="head">
       <h2 id="help-title">Shortcuts</h2>
-      <button class="button icon" onclick={controller.toggleHelp} aria-label="Close">×</button>
+      <div class="head-actions">
+        <button
+          class="button"
+          onclick={() => {
+            controller.toggleHelp();
+            controller.openHowToPlay();
+          }}
+        >
+          How to play
+        </button>
+        <button class="button icon" onclick={controller.toggleHelp} aria-label="Close">×</button>
+      </div>
     </div>
     <div class="columns">
       {#each rows as group (group.scope)}
@@ -110,6 +121,11 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 12px;
+  }
+
+  .head-actions {
+    display: flex;
+    gap: 6px;
   }
 
   h2 {

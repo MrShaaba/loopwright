@@ -282,6 +282,9 @@ export class Game {
     return game;
   }
 
+  /** The UI tells the engine when a card is up, so Enter and Space go to the card instead. */
+  modalOpen: () => boolean = () => false;
+
   /** Starts the render loop and input listeners. */
   start(): void {
     const canvas = this.canvas;
@@ -676,6 +679,7 @@ export class Game {
         scope: 'ride',
         combo,
         label: 'Back to the editor, or go again after the lap ends',
+        when: () => !this.modalOpen(),
         handler: () => {
           if (this.ride.state.phase === 'complete') this.ride.restart();
           else this.requestMode('edit');
