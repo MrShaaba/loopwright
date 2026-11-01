@@ -25,8 +25,11 @@ look, never the track or the ride.
 On top of the ride sits a game. Steer the ball around the inside of the tube with the left and
 right arrows to collect gold rings, worth more the faster you go and more again in a combo, hunt
 the three faceted gems hidden on the harder lines, roll over boost pads for a burst, and steer
-around the striped barriers that cut your speed and break the combo. Every lap is scored and the
-best ten laps are kept per track. Cruise mode turns the items off for a pure ride.
+around the striped barriers that cut your speed and break the combo. Pads and barriers use every
+lane, some pads come paired with a ring line on the far side so you choose, and weave runs
+alternate barriers from side to side. Every lap is scored within its speed band and the best ten
+laps are kept per track and band. Time Attack drops the items, races a ghost of your fastest lap
+and shows the split at each section. Cruise mode is the pure ride.
 
 ## Stack
 
@@ -89,9 +92,18 @@ timed and the best lap is kept per track.
   the ball has rebuilt its speed. There is no game over.
 - Items come from the track and a seed with a deterministic generator, so a track always gets the
   same layout, saved with the track and inside its share link. The editor's Items toggle shows
-  them while you shape the track and Reshuffle picks a new seed.
+  them while you shape the track and Reshuffle picks a new seed. Items keep 22 m clear before and
+  after a barrier so there is time to react at 2x.
+- Reading the track: a faint line traces each run of rings, a glowing strip on the wall marks the
+  lane of the next barrier, and items ignore the fog so they show from far away.
 - At the end of a lap a summary card shows score, rings, gems, best combo, top speed and lap
-  time, and the lap joins the track's top ten in localStorage.
+  time, and the lap joins the track's top ten in localStorage. Tables are kept per speed band:
+  1x and under, up to 2x, and above 2x, judged by the highest slider setting used in the lap.
+- Time Attack: no items, the fastest lap wins. A fastest lap in its band becomes a ghost, a
+  translucent twin of the ball that rides alongside you next time, and each section entry shows
+  the split against it.
+- The first ride opens a short how-to card, remembered once dismissed; the shortcuts overlay can
+  bring it back.
 - Sound: a chime whose pitch climbs with the combo, a sparkle for gems, a whoosh for boosts and a
   thud for hazards. `M` mutes everything.
 

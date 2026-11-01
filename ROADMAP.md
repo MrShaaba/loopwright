@@ -7,12 +7,12 @@ items.
 
 ## The game
 
-- Lanes: show the ring line ahead as a faint guide so arcs can be read at 3x
 - A near-miss bonus for skimming a hazard, and a perfect-lap bonus for every ring
 - Gem placement that reads the track harder: after a jump landing, inside a corkscrew roll
-- Time attack: a second scoring mode that pays for lap time rather than rings
-- Ghost ball of your best lap on this track
+- Time Attack ghosts you can export and share with the track link
+- A rolling start option so a flying lap and a standing lap compare fairly
 - Gamepad steering with the sticks, and a haptic tick on rings
+- Daily seed: the same layout for everyone for a day, with its own table
 
 ## The ride
 
