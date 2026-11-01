@@ -6,26 +6,66 @@ import { FLOOR_OFFSET } from '../ride/Ball';
 import { createSample, sampleTrackToRef, type PhysicsTrack } from '../ride/BallPhysics';
 import { clamp } from '../util/math';
 
-const BASE_FOV = 1.05;
-const FOV_WIDEN = 0.26;
-/** Metres behind the ball and the lift above the tube's centre line. */
-const BEHIND = 3.1;
-const LIFT = 0.12;
-const LOOK_AHEAD = 5;
-/** How far the look target sits from the ball towards the point ahead; keeps the ball in frame. */
-const LOOK_BLEND = 0.5;
-/** Time constants of the position and orientation smoothing, seconds. */
-const POSITION_TAU = 0.035;
-const ROTATION_TAU = 0.07;
+export type RideView = 'inside' | 'follow';
+
+export const RIDE_VIEWS: readonly RideView[] = ['inside', 'follow'];
+
+export const RIDE_VIEW_LABELS: Record<RideView, string> = {
+  inside: 'Inside',
+  follow: 'Follow',
+};
+
+interface ViewSpec {
+  /** Metres behind the ball along the track. */
+  behind: number;
+  /** Lift above the tube's centre line, metres. */
+  lift: number;
+  /** Metres ahead of the ball for the far look point. */
+  lookAhead: number;
+  /** How far the look target sits from the ball towards the point ahead. */
+  lookBlend: number;
+  fov: number;
+  /** Extra field of view at full speed, radians. */
+  widen: number;
+  /** Time constants of the position and orientation smoothing, seconds. */
+  positionTau: number;
+  rotationTau: number;
+}
+
+const VIEWS: Record<RideView, ViewSpec> = {
+  // Tight: just behind the ball, looking down the curve.
+  inside: {
+    behind: 3.1,
+    lift: 0.12,
+    lookAhead: 5,
+    lookBlend: 0.5,
+    fov: 1.05,
+    widen: 0.26,
+    positionTau: 0.035,
+    rotationTau: 0.07,
+  },
+  // Further back and higher, so the ball runs ahead of you in frame.
+  follow: {
+    behind: 7.5,
+    lift: 0.95,
+    lookAhead: 4,
+    lookBlend: 0.3,
+    fov: 0.92,
+    widen: 0.18,
+    positionTau: 0.06,
+    rotationTau: 0.11,
+  },
+};
 
 /**
- * Rides inside the tube just behind the ball, looking ahead along the curve. The up vector
- * comes from the track frame, so the view banks with turns and rolls through loops. Position
- * and orientation are smoothed exponentially, the orientation as a quaternion, which keeps the
- * camera steady when the track goes vertical.
+ * Rides inside the tube behind the ball, looking ahead along the curve. The up vector comes
+ * from the track frame, so the view banks with turns and rolls through loops. Position and
+ * orientation are smoothed exponentially, the orientation as a quaternion, which keeps the
+ * camera steady when the track goes vertical. Two views share the rig: Inside and Follow.
  */
 export class RideCamera {
   readonly camera: UniversalCamera;
+  view: RideView = 'inside';
   private readonly behind = createSample();
   private readonly ahead = createSample();
   private readonly ball = createSample();
@@ -43,7 +83,7 @@ export class RideCamera {
     this.camera = new UniversalCamera('ride', new Vector3(0, 3, -5), scene);
     this.camera.minZ = 0.08;
     this.camera.maxZ = 2500;
-    this.camera.fov = BASE_FOV;
+    this.camera.fov = VIEWS.inside.fov;
     this.camera.rotationQuaternion = Quaternion.Identity();
     this.camera.inputs.clear();
   }
@@ -52,13 +92,28 @@ export class RideCamera {
     return this.camera;
   }
 
+  private get spec(): ViewSpec {
+    return VIEWS[this.view];
+  }
+
+  setView(view: RideView): void {
+    this.view = view;
+  }
+
+  cycleView(): RideView {
+    const index = RIDE_VIEWS.indexOf(this.view);
+    this.view = RIDE_VIEWS[(index + 1) % RIDE_VIEWS.length] ?? 'inside';
+    return this.view;
+  }
+
   /** Snaps to the ball's position and makes this the active camera. */
   activate(track: PhysicsTrack, s: number): void {
     this.active = true;
-    this.solve(track, s);
+    this.solve(track, s, 0);
     this.camera.position.copyFrom(this.targetPosition);
     this.rotation.copyFrom(this.targetRotation);
     this.camera.rotationQuaternion?.copyFrom(this.rotation);
+    this.camera.fov = this.spec.fov;
     this.scene.activeCamera = this.camera;
   }
 
@@ -66,16 +121,17 @@ export class RideCamera {
     this.active = false;
   }
 
-  private solve(track: PhysicsTrack, s: number): void {
-    sampleTrackToRef(track, s - BEHIND, this.behind);
+  private solve(track: PhysicsTrack, s: number, lift: number): void {
+    const spec = this.spec;
+    sampleTrackToRef(track, s - spec.behind, this.behind);
     sampleTrackToRef(track, s, this.ball);
-    sampleTrackToRef(track, s + LOOK_AHEAD, this.ahead);
-    this.behind.up.scaleToRef(LIFT, this.scratch);
+    sampleTrackToRef(track, s + spec.lookAhead, this.ahead);
+    this.behind.up.scaleToRef(spec.lift + lift, this.scratch);
     this.targetPosition.copyFrom(this.behind.position).addInPlace(this.scratch);
     // Aim between the ball itself (which rides the tube floor) and the centre line ahead.
     this.ball.up.scaleToRef(-FLOOR_OFFSET, this.scratch);
     this.scratch.addInPlace(this.ball.position);
-    Vector3.LerpToRef(this.scratch, this.ahead.position, LOOK_BLEND, this.lookAt);
+    Vector3.LerpToRef(this.scratch, this.ahead.position, spec.lookBlend, this.lookAt);
     this.lookAt.subtractToRef(this.targetPosition, this.forward);
     if (this.forward.lengthSquared() < 1e-8) this.forward.copyFrom(this.behind.tangent);
     this.forward.normalize();
@@ -95,17 +151,29 @@ export class RideCamera {
     );
   }
 
-  update(dt: number, track: PhysicsTrack, s: number, speed: number, reducedMotion: boolean): void {
+  /**
+   * Follows the ball. `lift` is an extra vertical offset in metres along the frame's up, for
+   * airtime and squeeze; `speed` is the effective speed in m/s.
+   */
+  update(
+    dt: number,
+    track: PhysicsTrack,
+    s: number,
+    speed: number,
+    reducedMotion: boolean,
+    lift = 0,
+  ): void {
     if (!this.active) return;
-    this.solve(track, s);
-    const kPosition = 1 - Math.exp(-dt / POSITION_TAU);
-    const kRotation = 1 - Math.exp(-dt / ROTATION_TAU);
+    const spec = this.spec;
+    this.solve(track, s, lift);
+    const kPosition = 1 - Math.exp(-dt / spec.positionTau);
+    const kRotation = 1 - Math.exp(-dt / spec.rotationTau);
     Vector3.LerpToRef(this.camera.position, this.targetPosition, kPosition, this.camera.position);
     Quaternion.SlerpToRef(this.rotation, this.targetRotation, kRotation, this.rotation);
     this.rotation.normalize();
     this.camera.rotationQuaternion?.copyFrom(this.rotation);
-    const widen = reducedMotion ? 0 : FOV_WIDEN * clamp((speed - 8) / 32, 0, 1);
-    this.camera.fov += (BASE_FOV + widen - this.camera.fov) * (1 - Math.exp(-dt / 0.25));
+    const widen = reducedMotion ? 0 : spec.widen * clamp((speed - 8) / 32, 0, 1);
+    this.camera.fov += (spec.fov + widen - this.camera.fov) * (1 - Math.exp(-dt / 0.25));
   }
 
   dispose(): void {

@@ -32,7 +32,7 @@
     <button class="button primary" onclick={copy}>Copy link</button>
     <button class="button" onclick={controller.exportJson}>Export JSON</button>
     <button class="button" onclick={() => fileInput?.click()}>Import JSON</button>
-    <button class="button" onclick={controller.takePhoto}>Photo <span class="kbd">C</span></button>
+    <button class="button" onclick={controller.takePhoto}>Photo <span class="kbd">O</span></button>
   </div>
   <p class="hint">
     The link holds the whole track, so it works without any server. The address bar keeps it current

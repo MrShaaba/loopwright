@@ -1,3 +1,5 @@
+import type { RideView } from '../../engine/camera/RideCamera';
+
 export interface RideUiState {
   /** km/h, multiplier and boost included. */
   speed: number;
@@ -10,6 +12,7 @@ export interface RideUiState {
   laps: number;
   time: number;
   muted: boolean;
+  view: RideView;
 }
 
 export const ride: RideUiState = $state({
@@ -22,4 +25,5 @@ export const ride: RideUiState = $state({
   laps: 0,
   time: 0,
   muted: false,
+  view: 'inside',
 });

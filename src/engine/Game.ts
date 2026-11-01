@@ -622,6 +622,12 @@ export class Game {
       handler: () => this.ride.togglePause(),
     });
     this.keys.bind({
+      scope: 'ride',
+      combo: 'KeyC',
+      label: 'Switch between the Inside and Follow views',
+      handler: () => this.ride.cycleView(),
+    });
+    this.keys.bind({
       scope: 'global',
       combo: 'KeyT',
       label: 'Next theme',
@@ -635,8 +641,8 @@ export class Game {
     });
     this.keys.bind({
       scope: 'global',
-      combo: 'KeyC',
-      label: 'Capture a photo',
+      combo: 'KeyO',
+      label: 'Save a photo',
       handler: () => {
         this.takePhoto().catch((error: unknown) => {
           console.error(error);

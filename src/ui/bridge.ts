@@ -34,6 +34,7 @@ export interface Controller {
   nudgeMultiplier: (direction: 1 | -1) => void;
   togglePause: () => void;
   toggleMute: () => void;
+  cycleView: () => void;
   loadStarter: (id: string) => void;
   showIssue: (index: number) => void;
   selectSection: (id: string | null, focus?: boolean) => void;
@@ -81,10 +82,15 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   });
   if (prefs.multiplier !== undefined) game.ride.setMultiplier(prefs.multiplier);
   if (prefs.muted) game.audio.setMuted(true);
+  if (prefs.view) game.ride.setView(prefs.view);
   ui.track = game.summary();
 
   const persistPrefs = (): void => {
-    savePrefs({ multiplier: game.ride.multiplier, muted: game.audio.muted });
+    savePrefs({
+      multiplier: game.ride.multiplier,
+      muted: game.audio.muted,
+      view: game.ride.camera.view,
+    });
   };
 
   const unsubscribe = [
@@ -127,6 +133,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       ride.laps = status.laps;
       ride.time = status.time;
       ride.muted = status.muted;
+      ride.view = status.view;
     }),
   ];
   ride.multiplier = game.ride.multiplier;
@@ -260,6 +267,10 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     },
     toggleMute: () => {
       game.ride.toggleMute();
+      persistPrefs();
+    },
+    cycleView: () => {
+      game.ride.cycleView();
       persistPrefs();
     },
     loadStarter: (id) => {

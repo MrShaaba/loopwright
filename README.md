@@ -59,11 +59,11 @@ npm run format   # Prettier write
 | Context  | Keys and mouse                                                                                  |
 | -------- | ----------------------------------------------------------------------------------------------- |
 | Anywhere | `Enter` or `Space` ride, and the same key or `Esc` returns to the editor                        |
-| Ride     | `↑` `↓` nudge the speed multiplier, hold `Shift` to boost, `P` pause                            |
+| Ride     | `↑` `↓` nudge the speed multiplier, hold `Shift` to boost, `P` pause, `C` Inside or Follow view |
 | Editor   | click the tube to select a section, `Delete` remove it, `Ctrl`/`Cmd+D` duplicate, `1` frame all |
 | Editor   | `Ctrl`/`Cmd+Z` undo, `Shift+Ctrl`/`Cmd+Z` redo, a whole slider drag is one step                 |
 | Orbit    | drag to orbit, right-drag to pan, scroll to zoom, `F` toggles the free-fly camera               |
-| Anywhere | `T` next theme, `M` mute, `C` save a photo, `?` or `H` shortcuts                                |
+| Anywhere | `T` next theme, `M` mute, `O` save a photo, `?` or `H` shortcuts                                |
 
 The Share button in the top bar renames the track, copies a link that rebuilds it with no server,
 exports and imports JSON, and takes a photo. The track name opens the five starter tracks.

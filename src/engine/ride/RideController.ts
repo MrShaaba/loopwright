@@ -1,5 +1,5 @@
 import type { AudioEngine } from '../audio/AudioEngine';
-import type { RideCamera } from '../camera/RideCamera';
+import type { RideCamera, RideView } from '../camera/RideCamera';
 import { Emitter } from '../events';
 import type { CompiledTrack } from '../track/Track';
 import type { TubeView } from '../tube/TubeView';
@@ -33,6 +33,7 @@ export interface RideStatus {
   laps: number;
   time: number;
   muted: boolean;
+  view: RideView;
 }
 
 export interface RideEvents {
@@ -138,6 +139,17 @@ export class RideController {
     this.emitStatus();
   }
 
+  setView(view: RideView): void {
+    this.camera.setView(view);
+    this.emitStatus();
+  }
+
+  cycleView(): RideView {
+    const view = this.camera.cycleView();
+    this.emitStatus();
+    return view;
+  }
+
   togglePause(): boolean {
     if (!this.active) return false;
     this.paused = !this.paused;
@@ -183,6 +195,7 @@ export class RideController {
       laps: this.state.laps,
       time: this.state.time,
       muted: this.audio.muted,
+      view: this.camera.view,
     };
   }
 

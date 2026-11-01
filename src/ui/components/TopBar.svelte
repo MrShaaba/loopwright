@@ -136,7 +136,7 @@
       class="button icon"
       onclick={controller.takePhoto}
       aria-label="Save a photo"
-      title="Save a photo (C)"
+      title="Save a photo (O)"
     >
       <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">
         <path

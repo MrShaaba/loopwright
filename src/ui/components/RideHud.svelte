@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { RIDE_VIEW_LABELS } from '../../engine/camera/RideCamera';
   import type { Controller } from '../bridge';
   import { ride } from '../state/ride.svelte';
 
@@ -82,6 +83,9 @@
       <span class="kbd">↓</span> nudge
     </p>
     <div class="buttons">
+      <button class="button" onclick={() => controller.cycleView()} title="Switch view (C)">
+        {RIDE_VIEW_LABELS[ride.view]} <span class="kbd">C</span>
+      </button>
       <button class="button" onclick={() => controller.togglePause()} aria-pressed={ride.paused}>
         {ride.paused ? 'Resume' : 'Pause'} <span class="kbd">P</span>
       </button>

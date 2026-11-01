@@ -6,6 +6,7 @@ const PREFS_KEY = 'loopwright.prefs.v1';
 export interface Prefs {
   multiplier: number;
   muted: boolean;
+  view: 'inside' | 'follow';
 }
 
 function read(key: string): unknown {
@@ -43,6 +44,7 @@ export function loadPrefs(): Partial<Prefs> {
     prefs.multiplier = record.multiplier;
   }
   if (typeof record.muted === 'boolean') prefs.muted = record.muted;
+  if (record.view === 'inside' || record.view === 'follow') prefs.view = record.view;
   return prefs;
 }
 
