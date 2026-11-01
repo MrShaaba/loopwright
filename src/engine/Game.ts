@@ -85,6 +85,13 @@ function nextFrame(): Promise<void> {
 
 const FLAT = (): number => 0;
 
+/** m:ss.t for lap times. */
+export function formatLap(seconds: number): string {
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds - minutes * 60;
+  return `${minutes}:${rest.toFixed(1).padStart(4, '0')}`;
+}
+
 /**
  * Owns the Babylon engine and scene. Framework-free: the UI drives it through
  * the command methods and listens on `events`.
@@ -138,6 +145,10 @@ export class Game {
     this.validation = validateTrack(this.doc.sections, this.compiled);
     this.markers = new IssueMarkers(this.scene);
     this.markers.show(this.validation.issues);
+    this.ride.setTrackKey(encodeTrack(this.doc));
+    this.ride.events.on('lap', (lap) => {
+      if (lap.best) this.toast(`New best lap: ${formatLap(lap.seconds)}`);
+    });
     this.performance = new PerformanceGovernor(this.engine, (sample) =>
       this.events.emit('performance', sample),
     );
@@ -335,6 +346,7 @@ export class Game {
     this.compiled = compileTrack(this.doc.sections);
     this.tube.rebuild(this.compiled);
     this.ride.syncTrack(this.compiled);
+    this.ride.setTrackKey(encodeTrack(this.doc));
     this.validation = validateTrack(this.doc.sections, this.compiled);
     this.markers.show(this.validation.issues);
     this.persist();
@@ -551,8 +563,11 @@ export class Game {
       this.keys.bind({
         scope: 'ride',
         combo,
-        label: 'Back to the editor',
-        handler: () => this.requestMode('edit'),
+        label: 'Back to the editor, or go again after the lap ends',
+        handler: () => {
+          if (this.ride.state.phase === 'complete') this.ride.restart();
+          else this.requestMode('edit');
+        },
       });
     }
     this.keys.bind({

@@ -35,6 +35,8 @@ export interface Controller {
   togglePause: () => void;
   toggleMute: () => void;
   cycleView: () => void;
+  toggleEndless: () => void;
+  restartRide: () => void;
   loadStarter: (id: string) => void;
   showIssue: (index: number) => void;
   selectSection: (id: string | null, focus?: boolean) => void;
@@ -83,6 +85,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   if (prefs.multiplier !== undefined) game.ride.setMultiplier(prefs.multiplier);
   if (prefs.muted) game.audio.setMuted(true);
   if (prefs.view) game.ride.setView(prefs.view);
+  if (prefs.endless !== undefined) game.ride.setEndless(prefs.endless);
   ui.track = game.summary();
 
   const persistPrefs = (): void => {
@@ -90,6 +93,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       multiplier: game.ride.multiplier,
       muted: game.audio.muted,
       view: game.ride.camera.view,
+      endless: game.ride.endless,
     });
   };
 
@@ -135,6 +139,11 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       ride.muted = status.muted;
       ride.view = status.view;
       ride.gVertical = status.gVertical;
+      ride.phase = status.phase;
+      ride.endless = status.endless;
+      ride.lapTime = status.lapTime;
+      ride.lastLap = status.lastLap;
+      ride.bestLap = status.bestLap;
     }),
   ];
   ride.multiplier = game.ride.multiplier;
@@ -274,6 +283,11 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       game.ride.cycleView();
       persistPrefs();
     },
+    toggleEndless: () => {
+      game.ride.setEndless(!game.ride.endless);
+      persistPrefs();
+    },
+    restartRide: () => game.ride.restart(),
     loadStarter: (id) => {
       const found = getStarter(id);
       if (!found) return;

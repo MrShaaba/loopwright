@@ -2,11 +2,14 @@ import { parseTrackDoc, type TrackDoc } from './schema';
 
 const TRACK_KEY = 'loopwright.track.v2';
 const PREFS_KEY = 'loopwright.prefs.v1';
+const BEST_LAPS_KEY = 'loopwright.bestLaps.v1';
+const MAX_BEST_LAPS = 60;
 
 export interface Prefs {
   multiplier: number;
   muted: boolean;
   view: 'inside' | 'follow';
+  endless: boolean;
 }
 
 function read(key: string): unknown {
@@ -45,9 +48,36 @@ export function loadPrefs(): Partial<Prefs> {
   }
   if (typeof record.muted === 'boolean') prefs.muted = record.muted;
   if (record.view === 'inside' || record.view === 'follow') prefs.view = record.view;
+  if (typeof record.endless === 'boolean') prefs.endless = record.endless;
   return prefs;
 }
 
 export function savePrefs(prefs: Prefs): boolean {
   return write(PREFS_KEY, prefs);
+}
+
+function readBestLaps(): Record<string, number> {
+  const raw = read(BEST_LAPS_KEY);
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) out[key] = value;
+  }
+  return out;
+}
+
+/** Best lap in seconds for a track key (its share code), or null. */
+export function loadBestLap(key: string): number | null {
+  return readBestLaps()[key] ?? null;
+}
+
+/** Records a lap if it beats the stored best. Keeps the most recent sixty tracks. */
+export function saveBestLap(key: string, seconds: number): boolean {
+  const laps = readBestLaps();
+  const current = laps[key];
+  if (current !== undefined && current <= seconds) return false;
+  delete laps[key];
+  const entries = Object.entries(laps).slice(-(MAX_BEST_LAPS - 1));
+  entries.push([key, seconds]);
+  return write(BEST_LAPS_KEY, Object.fromEntries(entries));
 }

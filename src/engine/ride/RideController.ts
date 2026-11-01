@@ -1,6 +1,7 @@
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { RideCamera, RideView } from '../camera/RideCamera';
 import { Emitter } from '../events';
+import { loadBestLap, saveBestLap } from '../save/storage';
 import type { CompiledTrack } from '../track/Track';
 import type { TubeView } from '../tube/TubeView';
 import { clamp } from '../util/math';
@@ -18,6 +19,7 @@ import {
   sampleTrackToRef,
   stepRide,
   type PhysicsTrack,
+  type RidePhase,
   type RideState,
 } from './BallPhysics';
 
@@ -37,11 +39,25 @@ export interface RideStatus {
   view: RideView;
   /** Smoothed vertical g felt by the ball; 1 on level track, under 0.4 reads as airtime. */
   gVertical: number;
+  phase: RidePhase;
+  endless: boolean;
+  /** Seconds into the current lap. */
+  lapTime: number;
+  lastLap: number;
+  /** Best lap for this track in seconds, or null before one is recorded. */
+  bestLap: number | null;
+}
+
+export interface LapEvent {
+  lap: number;
+  seconds: number;
+  best: boolean;
 }
 
 export interface RideEvents {
   status: RideStatus;
   active: boolean;
+  lap: LapEvent;
 }
 
 const STATUS_INTERVAL = 1 / 20;
@@ -58,6 +74,8 @@ export class RideController {
   readonly state: RideState = createRideState();
   multiplier = 1;
   paused = false;
+  /** Keep going lap after lap, or brake to a stop after one. */
+  endless = false;
   /** True while reduced motion is requested; the camera and tube read it every frame. */
   reducedMotion = false;
   private track: PhysicsTrack;
@@ -69,6 +87,9 @@ export class RideController {
   private lastTravelled = 0;
   private gVertical = 1;
   private feel = 0;
+  private trackKey = '';
+  private bestLap: number | null = null;
+  private lapsSeen = 0;
 
   constructor(
     compiled: CompiledTrack,
@@ -79,6 +100,14 @@ export class RideController {
   ) {
     this.track = createPhysicsTrack(compiled.frames);
     this.placeBall();
+  }
+
+  /** Tells the controller which track this is, so best laps are kept per track. */
+  setTrackKey(key: string): void {
+    if (key === this.trackKey) return;
+    this.trackKey = key;
+    this.bestLap = loadBestLap(key);
+    this.emitStatus();
   }
 
   get isActive(): boolean {
@@ -113,10 +142,30 @@ export class RideController {
     this.paused = false;
     resetRide(this.state);
     this.lastTravelled = 0;
+    this.lapsSeen = 0;
     this.placeBall();
     this.camera.activate(this.track, this.state.s);
     this.audio.start();
     this.events.emit('active', true);
+    this.emitStatus();
+  }
+
+  /** Back to the start line for another go, without leaving ride mode. */
+  restart(): void {
+    if (!this.active) return;
+    this.paused = false;
+    resetRide(this.state);
+    this.lastTravelled = 0;
+    this.lapsSeen = 0;
+    this.gVertical = 1;
+    this.feel = 0;
+    this.placeBall();
+    this.camera.activate(this.track, this.state.s);
+    this.emitStatus();
+  }
+
+  setEndless(endless: boolean): void {
+    this.endless = endless;
     this.emitStatus();
   }
 
@@ -181,8 +230,12 @@ export class RideController {
     const target = this.boostHeld ? BOOST_FACTOR : 1;
     this.boost += (target - this.boost) * (1 - Math.exp(-dt / BOOST_TAU));
     if (!this.paused) {
-      stepRide(this.state, this.track, dt, this.effectiveMultiplier);
+      stepRide(this.state, this.track, dt, this.effectiveMultiplier, undefined, this.endless);
       this.audio.update(this.speed);
+      if (this.state.laps > this.lapsSeen) {
+        this.lapsSeen = this.state.laps;
+        this.recordLap();
+      }
     }
     const rolled = this.state.travelled - this.lastTravelled;
     this.lastTravelled = this.state.travelled;
@@ -195,6 +248,14 @@ export class RideController {
       this.statusTimer = 0;
       this.emitStatus();
     }
+  }
+
+  private recordLap(): void {
+    const seconds = this.state.lastLap;
+    const best = this.trackKey !== '' && saveBestLap(this.trackKey, seconds);
+    if (best) this.bestLap = seconds;
+    this.events.emit('lap', { lap: this.state.laps, seconds, best });
+    this.emitStatus();
   }
 
   /**
@@ -224,6 +285,11 @@ export class RideController {
       muted: this.audio.muted,
       view: this.camera.view,
       gVertical: this.gVertical,
+      phase: this.state.phase,
+      endless: this.endless,
+      lapTime: this.state.time - this.state.lapStart,
+      lastLap: this.state.lastLap,
+      bestLap: this.bestLap,
     };
   }
 

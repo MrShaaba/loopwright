@@ -90,12 +90,41 @@ describe('stepRide', () => {
     stepRide(state, track, 0.2);
     resetRide(state);
     expect(state).toEqual({
+      phase: 'running',
       s: 0,
       v: PHYSICS_DEFAULTS.startSpeed,
       time: 0,
       laps: 0,
+      lapStart: 0,
+      lastLap: 0,
       travelled: 0,
     });
+  });
+
+  it('times each lap', () => {
+    const track = physics([createSection('straight', { length: 20 })]);
+    const state = createRideState();
+    for (let i = 0; i < 400 && state.laps < 2; i++) stepRide(state, track, 0.05, 2);
+    expect(state.laps).toBe(2);
+    expect(state.lastLap).toBeGreaterThan(1);
+    expect(state.lastLap).toBeLessThan(state.time);
+    expect(state.lapStart).toBeGreaterThan(state.lastLap - 1e-6);
+  });
+
+  it('brakes to a stop after one lap when the ride is not endless', () => {
+    const track = physics([createSection('straight', { length: 20 })]);
+    const state = createRideState();
+    for (let i = 0; i < 600 && state.phase !== 'complete'; i++) {
+      stepRide(state, track, 0.05, 1, PHYSICS_DEFAULTS, false);
+    }
+    expect(state.phase).toBe('complete');
+    expect(state.laps).toBe(1);
+    expect(state.v).toBe(0);
+    expect(state.s).toBeGreaterThan(0);
+    expect(state.s).toBeLessThan(60);
+    const frozen = { ...state };
+    stepRide(state, track, 0.5, 1, PHYSICS_DEFAULTS, false);
+    expect(state).toEqual(frozen);
   });
 });
 

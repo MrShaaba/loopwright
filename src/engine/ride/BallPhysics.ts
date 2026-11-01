@@ -101,7 +101,13 @@ export function sampleTrack(track: PhysicsTrack, s: number): TrackSample {
   return sampleTrackToRef(track, s, createSample());
 }
 
+export type RidePhase = 'running' | 'finishing' | 'complete';
+
+/** Deceleration applied after the final lap when the ride is not endless, m/s^2. */
+const FINISH_BRAKE = 5;
+
 export interface RideState {
+  phase: RidePhase;
   /** Arc length of the ball along the loop. */
   s: number;
   /** Base speed from physics, m/s, before the multiplier. */
@@ -109,19 +115,35 @@ export interface RideState {
   /** Seconds of ride time; pauses do not count. */
   time: number;
   laps: number;
+  /** Ride time when the current lap began. */
+  lapStart: number;
+  /** Duration of the last completed lap in seconds, or 0 before the first. */
+  lastLap: number;
   /** Distance the ball has actually travelled, multiplier included, for rolling and streaks. */
   travelled: number;
 }
 
 export function createRideState(params: PhysicsParams = PHYSICS_DEFAULTS): RideState {
-  return { s: 0, v: params.startSpeed, time: 0, laps: 0, travelled: 0 };
+  return {
+    phase: 'running',
+    s: 0,
+    v: params.startSpeed,
+    time: 0,
+    laps: 0,
+    lapStart: 0,
+    lastLap: 0,
+    travelled: 0,
+  };
 }
 
 export function resetRide(state: RideState, params: PhysicsParams = PHYSICS_DEFAULTS): void {
+  state.phase = 'running';
   state.s = 0;
   state.v = params.startSpeed;
   state.time = 0;
   state.laps = 0;
+  state.lapStart = 0;
+  state.lastLap = 0;
   state.travelled = 0;
 }
 
@@ -163,6 +185,7 @@ function smoothSign(v: number): number {
  * Advances the ball by `dt` seconds at 240 Hz substeps. The base speed follows gravity along
  * the tangent minus rolling resistance and drag, clamped so the ride never stalls or runs away.
  * `multiplier` scales how fast the ball advances along the track without touching that physics.
+ * When the ride is not endless, crossing the start line brakes the ball to a stop.
  */
 export function stepRide(
   state: RideState,
@@ -170,24 +193,41 @@ export function stepRide(
   dt: number,
   multiplier = 1,
   params: PhysicsParams = PHYSICS_DEFAULTS,
+  endless = true,
 ): void {
   if (track.frames.length < 2 || track.length <= 0) return;
+  if (state.phase === 'complete') return;
   let remaining = Math.min(dt, 0.25);
   while (remaining > 1e-9) {
     const h = Math.min(SUBSTEP, remaining);
     remaining -= h;
-    const sample = sampleTrackToRef(track, state.s, SAMPLE);
-    const g = params.gravity;
-    const a =
-      -g * sample.tangent.y -
-      params.rollingResistance * g * smoothSign(state.v) -
-      params.drag * state.v * Math.abs(state.v);
-    state.v = Math.min(params.maxSpeed, Math.max(params.minSpeed, state.v + a * h));
+    if (state.phase === 'finishing') {
+      state.v = Math.max(0, state.v - FINISH_BRAKE * h);
+      if (state.v <= 0.05) {
+        state.v = 0;
+        state.phase = 'complete';
+        state.time += h;
+        return;
+      }
+    } else {
+      const sample = sampleTrackToRef(track, state.s, SAMPLE);
+      const g = params.gravity;
+      const a =
+        -g * sample.tangent.y -
+        params.rollingResistance * g * smoothSign(state.v) -
+        params.drag * state.v * Math.abs(state.v);
+      state.v = Math.min(params.maxSpeed, Math.max(params.minSpeed, state.v + a * h));
+    }
     const advance = state.v * multiplier * h;
     const next = state.s + advance;
-    if (next >= track.length) state.laps++;
+    state.time += h;
+    if (next >= track.length && state.phase === 'running') {
+      state.laps++;
+      state.lastLap = state.time - state.lapStart;
+      state.lapStart = state.time;
+      if (!endless) state.phase = 'finishing';
+    }
     state.s = wrapS(track, next);
     state.travelled += advance;
-    state.time += h;
   }
 }

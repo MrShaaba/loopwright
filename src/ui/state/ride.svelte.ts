@@ -1,4 +1,5 @@
 import type { RideView } from '../../engine/camera/RideCamera';
+import type { RidePhase } from '../../engine/ride/BallPhysics';
 
 export interface RideUiState {
   /** km/h, multiplier and boost included. */
@@ -14,6 +15,11 @@ export interface RideUiState {
   muted: boolean;
   view: RideView;
   gVertical: number;
+  phase: RidePhase;
+  endless: boolean;
+  lapTime: number;
+  lastLap: number;
+  bestLap: number | null;
 }
 
 export const ride: RideUiState = $state({
@@ -28,4 +34,9 @@ export const ride: RideUiState = $state({
   muted: false,
   view: 'inside',
   gVertical: 1,
+  phase: 'running',
+  endless: false,
+  lapTime: 0,
+  lastLap: 0,
+  bestLap: null,
 });

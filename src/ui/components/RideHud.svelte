@@ -5,12 +5,11 @@
 
   let { controller }: { controller: Controller } = $props();
 
-  const clock = $derived.by(() => {
-    const total = Math.floor(ride.time);
-    const minutes = Math.floor(total / 60);
-    const seconds = total % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  });
+  function lap(seconds: number): string {
+    const minutes = Math.floor(seconds / 60);
+    const rest = seconds - minutes * 60;
+    return `${minutes}:${rest.toFixed(1).padStart(4, '0')}`;
+  }
 
   function onSlider(event: Event): void {
     const input = event.currentTarget as HTMLInputElement;
@@ -48,9 +47,26 @@
     <div class="fill" style="width: {ride.progress * 100}%"></div>
   </div>
 
+  {#if ride.phase === 'complete'}
+    <div class="finished panel">
+      <p class="finished-title">Lap complete · {lap(ride.lastLap)}</p>
+      <p class="finished-hint">
+        <span class="kbd">Space</span> go again · <span class="kbd">Esc</span> edit
+      </p>
+    </div>
+  {/if}
+
   <div class="stats panel">
-    <span class="stat"><span class="label">Lap</span> {ride.laps + 1}</span>
-    <span class="stat"><span class="label">Time</span> {clock}</span>
+    <span class="stat"
+      ><span class="label">Lap</span> {ride.phase === 'complete' ? ride.laps : ride.laps + 1}</span
+    >
+    <span class="stat"><span class="label">Time</span> {lap(ride.lapTime)}</span>
+    {#if ride.lastLap > 0}
+      <span class="stat"><span class="label">Last</span> {lap(ride.lastLap)}</span>
+    {/if}
+    {#if ride.bestLap !== null}
+      <span class="stat best"><span class="label">Best</span> {lap(ride.bestLap)}</span>
+    {/if}
     <span class="stat"><span class="label">Around</span> {Math.round(ride.progress * 100)}%</span>
   </div>
 
@@ -95,6 +111,15 @@
       </button>
       <button class="button" onclick={() => controller.togglePause()} aria-pressed={ride.paused}>
         {ride.paused ? 'Resume' : 'Pause'} <span class="kbd">P</span>
+      </button>
+      <button
+        class="button"
+        class:on={ride.endless}
+        onclick={() => controller.toggleEndless()}
+        aria-pressed={ride.endless}
+        title="Keep riding lap after lap"
+      >
+        Endless {ride.endless ? 'on' : 'off'}
       </button>
       <button class="button" onclick={() => controller.toggleMute()} aria-pressed={ride.muted}>
         {ride.muted ? 'Unmute' : 'Mute'} <span class="kbd">M</span>
@@ -196,6 +221,42 @@
     background: var(--accent);
     box-shadow: 0 0 12px var(--accent);
     transition: width 0.05s linear;
+  }
+
+  .finished {
+    position: absolute;
+    top: calc(190px + var(--safe-top));
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 20px;
+    text-align: center;
+  }
+
+  .finished-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .finished-hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .button.on {
+    border-color: var(--accent);
+    color: var(--accent-text);
+    background: var(--accent-soft);
+  }
+
+  .stat.best {
+    color: var(--accent-text);
   }
 
   .stats {
