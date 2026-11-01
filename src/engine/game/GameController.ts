@@ -220,6 +220,8 @@ export class GameController {
     this.stats = createRunStats();
     this.maxMultiplier = this.ride.multiplier;
     this.refreshTop();
+    // A new ghost may have just been born: show it for the next lap.
+    this.applyVisibility(this.ride.isActive);
     this.emitStatus();
   }
 
