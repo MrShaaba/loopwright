@@ -1,10 +1,12 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
+import { PointerEventTypes } from '@babylonjs/core/Events/pointerEvents';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateScreenshotAsync } from '@babylonjs/core/Misc/screenshotTools';
 import { Scene } from '@babylonjs/core/scene';
 import { AudioEngine } from './audio/AudioEngine';
 import { CameraRig, type CameraMode, type CameraPreset } from './camera/CameraRig';
 import { RideCamera } from './camera/RideCamera';
+import { EditController } from './edit/EditController';
 import { Emitter } from './events';
 import { KeyRegistry, type KeyBinding } from './input/Keys';
 import { Ball } from './ride/Ball';
@@ -17,7 +19,13 @@ import { Lighting } from './scene/Lighting';
 import { PerformanceGovernor, type PerformanceSample } from './scene/Performance';
 import { Sky } from './scene/Sky';
 import type { ThemeConfig } from './theme/ThemeConfig';
-import { compileTrack, type CompiledTrack, type SectionSpec } from './track/Track';
+import {
+  compileTrack,
+  sectionAtPoint,
+  type CompiledTrack,
+  type SectionRange,
+  type SectionSpec,
+} from './track/Track';
 import { TubeView } from './tube/TubeView';
 import { DEG } from './util/math';
 
@@ -91,6 +99,7 @@ export class Game {
   readonly ball: Ball;
   readonly audio: AudioEngine;
   readonly ride: RideController;
+  readonly edit: EditController;
   readonly performance: PerformanceGovernor;
   mode: GameMode = 'edit';
   doc: TrackDoc;
@@ -121,6 +130,12 @@ export class Game {
       this.events.emit('performance', sample),
     );
     this.cameras.onModeChange = (mode) => this.events.emit('cameraMode', mode);
+    this.edit = new EditController((sections) => {
+      this.setSections(sections);
+      return { ranges: this.compiled.ranges, returnLength: this.compiled.returnLength };
+    });
+    this.edit.events.on('change', () => this.tube.setHighlight(this.edit.selectedRange()));
+    this.edit.load(this.doc.sections);
     this.keys.mode = 'edit';
     this.registerKeys();
   }
@@ -228,6 +243,23 @@ export class Game {
     this.disposers.push(() => window.removeEventListener('resize', onResize));
     this.disposers.push(this.keys.attach(window));
 
+    // A plain click on the tube selects the section under the pointer.
+    const tapObserver = this.scene.onPointerObservable.add((info) => {
+      if (info.type !== PointerEventTypes.POINTERTAP || info.event.button !== 0) return;
+      if (this.mode !== 'edit' || this.cameras.mode !== 'orbit') return;
+      const pickables = this.tube.pickables;
+      const pick = this.scene.pick(this.scene.pointerX, this.scene.pointerY, (mesh) =>
+        pickables.includes(mesh as (typeof pickables)[number]),
+      );
+      if (!pick.hit || !pick.pickedPoint) {
+        this.edit.select(null);
+        return;
+      }
+      const index = sectionAtPoint(this.compiled, pick.pickedPoint);
+      this.edit.select(this.edit.idAt(index));
+    });
+    this.disposers.push(() => this.scene.onPointerObservable.remove(tapObserver));
+
     const onShift = (event: KeyboardEvent): void => {
       if (event.key !== 'Shift') return;
       this.ride.setBoost(event.type === 'keydown');
@@ -254,6 +286,7 @@ export class Game {
 
     this.engine.runRenderLoop(() => {
       const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.1);
+      this.edit.flush();
       this.sky.update(dt);
       if (this.mode === 'ride') this.ride.update(dt);
       else this.cameras.update(dt);
@@ -292,8 +325,23 @@ export class Game {
   }
 
   loadDoc(doc: TrackDoc): void {
-    this.setSections(doc.sections, doc.name);
+    this.doc = createTrackDoc(doc.name, doc.theme, doc.sections);
+    this.edit.load(doc.sections);
     if (this.mode === 'edit') this.frameTrack(true);
+  }
+
+  /** Glides the editor camera to a section of the tube. */
+  focusSection(id: string): void {
+    const range = this.edit.rangeOf(id);
+    if (!range) return;
+    this.flyToRange(range);
+  }
+
+  private flyToRange(range: SectionRange): void {
+    const middle = this.compiled.frames[Math.round((range.s0 + range.s1) / 2 / 0.25)];
+    if (!middle) return;
+    const radius = Math.min(140, Math.max(32, range.length * 0.8 + 18));
+    this.cameras.flyToPoint(middle.position, radius);
   }
 
   /** Points the overview preset at the whole track and optionally flies there. */
@@ -399,6 +447,42 @@ export class Game {
       handler: () => this.frameTrack(true),
     });
     this.keys.bind({
+      scope: 'edit',
+      combo: 'mod+KeyZ',
+      label: 'Undo',
+      handler: () => {
+        if (!this.edit.undo()) this.toast('Nothing to undo');
+      },
+    });
+    for (const combo of ['shift+mod+KeyZ', 'mod+KeyY']) {
+      this.keys.bind({
+        scope: 'edit',
+        combo,
+        label: 'Redo',
+        handler: () => {
+          if (!this.edit.redo()) this.toast('Nothing to redo');
+        },
+      });
+    }
+    for (const combo of ['Delete', 'Backspace']) {
+      this.keys.bind({
+        scope: 'edit',
+        combo,
+        label: 'Remove the selected section',
+        when: () => this.edit.selected !== null,
+        handler: () => {
+          if (!this.edit.remove()) this.toast('A track needs at least one section');
+        },
+      });
+    }
+    this.keys.bind({
+      scope: 'edit',
+      combo: 'mod+KeyD',
+      label: 'Duplicate the selected section',
+      when: () => this.edit.selected !== null,
+      handler: () => this.edit.duplicate(),
+    });
+    this.keys.bind({
       scope: 'ride',
       combo: 'ArrowUp',
       label: 'Speed multiplier up',
@@ -440,6 +524,7 @@ export class Game {
     this.disposed = true;
     this.engine.stopRenderLoop();
     for (const dispose of this.disposers) dispose();
+    this.edit.dispose();
     this.ride.dispose();
     this.audio.dispose();
     this.rideCamera.dispose();

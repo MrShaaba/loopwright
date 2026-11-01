@@ -12,6 +12,7 @@
   ];
 
   const mouse = [
+    ['Click the tube', 'Select that section'],
     ['Drag', 'Orbit around the track'],
     ['Right-drag', 'Pan across the floor'],
     ['Scroll', 'Zoom in and out'],

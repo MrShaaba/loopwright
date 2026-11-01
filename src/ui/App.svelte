@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { bootGame, type Controller } from './bridge';
-  import EditBar from './components/EditBar.svelte';
   import HelpOverlay from './components/HelpOverlay.svelte';
+  import Inspector from './components/Inspector.svelte';
   import LoadingScreen from './components/LoadingScreen.svelte';
   import RideHud from './components/RideHud.svelte';
+  import Timeline from './components/Timeline.svelte';
   import Toast from './components/Toast.svelte';
   import TopBar from './components/TopBar.svelte';
   import { ui } from './state/game.svelte';
@@ -46,7 +47,8 @@
     {#if ui.mode === 'ride'}
       <RideHud {controller} />
     {:else}
-      <EditBar {controller} />
+      <Timeline {controller} />
+      <Inspector {controller} />
     {/if}
     {#if ui.helpOpen}
       <HelpOverlay {controller} />

@@ -4,6 +4,9 @@ import type { KeyBinding } from '../engine/input/Keys';
 import { loadPrefs, loadSavedTrack, savePrefs } from '../engine/save/storage';
 import { DEFAULT_STARTER_ID, getStarter, STARTERS } from '../engine/starters';
 import { DEFAULT_THEME_ID, getTheme } from '../engine/theme';
+import { listSectionDefs } from '../engine/track/sections';
+import type { ParamValue, SectionType } from '../engine/track/sections/types';
+import { edit } from './state/edit.svelte';
 import { ui } from './state/game.svelte';
 import { ride } from './state/ride.svelte';
 
@@ -25,6 +28,17 @@ export interface Controller {
   togglePause: () => void;
   toggleMute: () => void;
   loadStarter: (id: string) => void;
+  selectSection: (id: string | null, focus?: boolean) => void;
+  addSection: (type: SectionType) => void;
+  removeSection: () => void;
+  duplicateSection: () => void;
+  moveSection: (delta: number) => void;
+  setParam: (id: string, key: string, value: ParamValue) => void;
+  beginDrag: (id: string, key: string) => void;
+  previewParam: (id: string, key: string, value: ParamValue) => void;
+  endDrag: (value?: ParamValue) => void;
+  undo: () => void;
+  redo: () => void;
   dispose: () => void;
 }
 
@@ -105,6 +119,21 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   ];
   ride.multiplier = game.ride.multiplier;
   ride.muted = game.audio.muted;
+  edit.defs = listSectionDefs().map((def) => ({
+    type: def.type,
+    label: def.label,
+    description: def.description,
+    params: def.params,
+  }));
+  const applyEdit = (summary: ReturnType<typeof game.edit.summary>): void => {
+    edit.sections = summary.sections;
+    edit.returnLength = summary.returnLength;
+    edit.selectedId = summary.selectedId;
+    edit.canUndo = summary.canUndo;
+    edit.canRedo = summary.canRedo;
+  };
+  unsubscribe.push(game.edit.events.on('change', applyEdit));
+  applyEdit(game.edit.summary());
 
   const toggleHelp = (): void => {
     ui.helpOpen = !ui.helpOpen;
@@ -127,7 +156,9 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     label: 'Close the shortcuts panel, or leave the ride',
     handler: () => {
       if (ui.helpOpen) ui.helpOpen = false;
+      else if (edit.addMenuOpen) edit.addMenuOpen = false;
       else if (game.mode === 'ride') game.requestMode('edit');
+      else game.edit.select(null);
     },
   });
 
@@ -170,6 +201,34 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     loadStarter: (id) => {
       const found = getStarter(id);
       if (found) game.loadDoc(found.doc);
+    },
+    selectSection: (id, focus = false) => {
+      game.edit.select(id);
+      if (id && focus) game.focusSection(id);
+    },
+    addSection: (type) => {
+      const id = game.edit.add(type);
+      game.focusSection(id);
+    },
+    removeSection: () => {
+      if (!game.edit.remove()) game.toast('A track needs at least one section');
+    },
+    duplicateSection: () => {
+      game.edit.duplicate();
+    },
+    moveSection: (delta) => {
+      const selected = game.edit.selected;
+      if (selected) game.edit.moveBy(selected.id, delta);
+    },
+    setParam: (id, key, value) => game.edit.setParam(id, key, value),
+    beginDrag: (id, key) => game.edit.beginDrag(id, key),
+    previewParam: (id, key, value) => game.edit.preview(id, key, value),
+    endDrag: (value) => game.edit.endDrag(value),
+    undo: () => {
+      if (!game.edit.undo()) game.toast('Nothing to undo');
+    },
+    redo: () => {
+      if (!game.edit.redo()) game.toast('Nothing to redo');
     },
     dispose: () => {
       for (const off of unsubscribe) off();
