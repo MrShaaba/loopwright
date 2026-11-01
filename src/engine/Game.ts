@@ -1,6 +1,7 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { PointerEventTypes } from '@babylonjs/core/Events/pointerEvents';
-import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Color3 } from '@babylonjs/core/Maths/math.color';
+import { Matrix, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateScreenshotAsync } from '@babylonjs/core/Misc/screenshotTools';
 import { Scene } from '@babylonjs/core/scene';
 import { AudioEngine } from './audio/AudioEngine';
@@ -8,6 +9,8 @@ import { CameraRig, type CameraMode, type CameraPreset } from './camera/CameraRi
 import { RideCamera } from './camera/RideCamera';
 import { EditController } from './edit/EditController';
 import { Emitter } from './events';
+import { GameController, type PlayMode } from './game/GameController';
+import { ItemView } from './game/ItemView';
 import { KeyRegistry, type KeyBinding } from './input/Keys';
 import { Ball } from './ride/Ball';
 import { RideController } from './ride/RideController';
@@ -45,6 +48,7 @@ export interface TrackSummary {
   /** Metres around the loop. */
   length: number;
   sections: number;
+  seed: number;
 }
 
 export interface GameEvents {
@@ -56,6 +60,8 @@ export interface GameEvents {
   reducedMotion: boolean;
   validation: ValidationResult;
   theme: ThemeConfig;
+  /** A floating score pop, already projected to CSS pixels on the canvas. */
+  pop: { kind: 'ring' | 'gem' | 'boost' | 'hazard' | 'miss'; text: string; x: number; y: number };
 }
 
 interface GameParts {
@@ -113,6 +119,8 @@ export class Game {
   readonly audio: AudioEngine;
   readonly ride: RideController;
   readonly edit: EditController;
+  readonly items: ItemView;
+  readonly game: GameController;
   readonly markers: IssueMarkers;
   readonly performance: PerformanceGovernor;
   mode: GameMode = 'edit';
@@ -145,6 +153,14 @@ export class Game {
     this.validation = validateTrack(this.doc.sections, this.compiled);
     this.markers = new IssueMarkers(this.scene);
     this.markers.show(this.validation.issues);
+    this.items = new ItemView(this.scene, this.itemPalette());
+    this.game = new GameController(this.compiled, this.doc.seed, this.ride, this.items, this.audio);
+    this.game.events.on('pop', (pop) => {
+      const point = this.project(pop.position);
+      if (point)
+        this.events.emit('pop', { kind: pop.kind, text: pop.text, x: point.x, y: point.y });
+    });
+    this.ride.events.on('active', (active) => this.game.onRide(active));
     this.ride.setTrackKey(encodeTrack(this.doc));
     this.ride.events.on('lap', (lap) => {
       if (lap.best) this.toast(`New best lap: ${formatLap(lap.seconds)}`);
@@ -342,8 +358,11 @@ export class Game {
       const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.1);
       this.edit.flush();
       this.sky.update(dt);
-      if (this.mode === 'ride') this.ride.update(dt);
-      else {
+      this.items.update(dt);
+      if (this.mode === 'ride') {
+        this.ride.update(dt);
+        this.game.update();
+      } else {
         this.cameras.update(dt);
         this.markers.update(dt);
       }
@@ -368,16 +387,18 @@ export class Game {
       name: this.doc.name,
       length: this.compiled.length,
       sections: this.doc.sections.length,
+      seed: this.doc.seed,
     };
   }
 
   /** Replaces the sections, recompiles and reskins the tube. The ride keeps going if active. */
   setSections(sections: SectionSpec[], name = this.doc.name): void {
-    this.doc = createTrackDoc(name, this.doc.theme, sections);
+    this.doc = createTrackDoc(name, this.doc.theme, sections, this.doc.seed);
     this.compiled = compileTrack(this.doc.sections);
     this.tube.rebuild(this.compiled);
     this.ride.syncTrack(this.compiled);
     this.ride.setTrackKey(encodeTrack(this.doc));
+    this.game.setTrack(this.compiled, this.doc.seed);
     this.validation = validateTrack(this.doc.sections, this.compiled);
     this.markers.show(this.validation.issues);
     this.persist();
@@ -402,9 +423,44 @@ export class Game {
   rename(name: string): void {
     const trimmed = name.trim().slice(0, 48) || 'Untitled';
     if (trimmed === this.doc.name) return;
-    this.doc = createTrackDoc(trimmed, this.doc.theme, this.doc.sections);
+    this.doc = createTrackDoc(trimmed, this.doc.theme, this.doc.sections, this.doc.seed);
     this.persist();
     this.events.emit('track', this.summary());
+  }
+
+  /** A new item layout for the same track. The seed is saved with the track. */
+  reshuffleItems(): void {
+    const seed = (this.doc.seed + 1 + Math.floor(Math.random() * 1000)) % 65536;
+    this.setSeed(seed);
+  }
+
+  setSeed(seed: number): void {
+    this.doc = createTrackDoc(this.doc.name, this.doc.theme, this.doc.sections, seed);
+    this.game.setTrack(this.compiled, this.doc.seed);
+    this.ride.setTrackKey(encodeTrack(this.doc));
+    this.persist();
+    this.events.emit('track', this.summary());
+  }
+
+  setPlayMode(mode: PlayMode): void {
+    this.game.setMode(mode);
+  }
+
+  /** Projects a world point to CSS pixels on the canvas, or null when it is behind the camera. */
+  private project(point: Vector3): { x: number; y: number } | null {
+    const camera = this.scene.activeCamera;
+    if (!camera) return null;
+    const width = this.engine.getRenderWidth();
+    const height = this.engine.getRenderHeight();
+    const projected = Vector3.Project(
+      point,
+      Matrix.IdentityReadOnly,
+      this.scene.getTransformMatrix(),
+      camera.viewport.toGlobal(width, height),
+    );
+    if (projected.z < 0 || projected.z > 1) return null;
+    const scale = this.engine.getHardwareScalingLevel();
+    return { x: projected.x * scale, y: projected.y * scale };
   }
 
   /** A link that rebuilds this track with no server. */
@@ -451,7 +507,7 @@ export class Game {
   }
 
   loadDoc(doc: TrackDoc): void {
-    this.doc = createTrackDoc(doc.name, doc.theme, doc.sections);
+    this.doc = createTrackDoc(doc.name, doc.theme, doc.sections, doc.seed);
     this.edit.load(doc.sections);
     if (hasTheme(doc.theme)) this.setTheme(doc.theme);
     if (this.mode === 'edit') this.frameTrack(true);
@@ -490,9 +546,20 @@ export class Game {
     this.floor.restyle(theme.floor, theme.fog, theme.ball);
     this.tube.restyle(theme.tube, theme.fog);
     this.ball.restyle(theme.ball);
-    this.doc = createTrackDoc(this.doc.name, theme.id, this.doc.sections);
+    this.doc = createTrackDoc(this.doc.name, theme.id, this.doc.sections, this.doc.seed);
+    this.items.restyle(this.itemPalette());
     this.persist();
     this.events.emit('theme', theme);
+  }
+
+  private itemPalette(): { ring: Color3; gem: Color3; boost: Color3; hazard: Color3 } {
+    return {
+      // Rings stay gold in every theme so they never blend into the tube's own light rings.
+      ring: new Color3(1.0, 0.86, 0.45),
+      gem: new Color3(1.0, 0.45, 0.95),
+      boost: new Color3(0.45, 1.0, 0.6),
+      hazard: new Color3(1.0, 0.3, 0.3),
+    };
   }
 
   cycleTheme(): void {
@@ -705,6 +772,8 @@ export class Game {
     if (this.hashTimer) clearTimeout(this.hashTimer);
     for (const dispose of this.disposers) dispose();
     this.edit.dispose();
+    this.game.dispose();
+    this.items.dispose();
     this.markers.dispose();
     this.ride.dispose();
     this.audio.dispose();

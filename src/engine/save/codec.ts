@@ -2,8 +2,9 @@ import { getSectionDef, listSectionDefs } from '../track/sections';
 import type { ParamSpec, ParamValue, SectionParams } from '../track/sections/types';
 import { createTrackDoc, type TrackDoc } from './schema';
 
-/** Share link format. Bump when the byte layout changes. */
-export const SHARE_VERSION = 1;
+/** Share link format. Version 2 adds the item seed after the name; version 1 links still open. */
+export const SHARE_VERSION = 2;
+const OLDEST_VERSION = 1;
 export const SHARE_PARAM = 't';
 const MAX_NAME_BYTES = 48;
 const MAX_SECTIONS = 64;
@@ -121,6 +122,7 @@ export function encodeTrack(doc: TrackDoc): string {
   const themeIndex = THEME_IDS.indexOf(doc.theme as (typeof THEME_IDS)[number]);
   writer.u8(themeIndex >= 0 ? themeIndex : 0);
   writer.text(doc.name, MAX_NAME_BYTES);
+  writer.u16(doc.seed);
   const sections = doc.sections.slice(0, MAX_SECTIONS);
   writer.u8(sections.length);
   for (const section of sections) {
@@ -135,9 +137,11 @@ export function encodeTrack(doc: TrackDoc): string {
 export function decodeTrack(text: string): TrackDoc | null {
   try {
     const reader = new Reader(fromBase64Url(text.trim()));
-    if (reader.u8() !== SHARE_VERSION) return null;
+    const version = reader.u8();
+    if (version < OLDEST_VERSION || version > SHARE_VERSION) return null;
     const theme = THEME_IDS[reader.u8()] ?? THEME_IDS[0];
     const name = reader.text() || 'Shared track';
+    const seed = version >= 2 ? reader.u16() : 1;
     const count = reader.u8();
     if (count === 0 || count > MAX_SECTIONS) return null;
     const types = listSectionDefs().map((def) => def.type);
@@ -151,7 +155,7 @@ export function decodeTrack(text: string): TrackDoc | null {
       sections.push({ type, params });
     }
     if (reader.remaining !== 0) return null;
-    return createTrackDoc(name, theme, sections);
+    return createTrackDoc(name, theme, sections, seed);
   } catch {
     return null;
   }

@@ -3,6 +3,7 @@
   import type { Controller } from '../bridge';
   import { edit } from '../state/edit.svelte';
   import { ui } from '../state/game.svelte';
+  import { play } from '../state/play.svelte';
 
   let { controller }: { controller: Controller } = $props();
 
@@ -89,6 +90,22 @@
           </div>
         {/if}
       </div>
+      <button
+        class="button"
+        class:on={play.showItems}
+        onclick={controller.toggleItems}
+        aria-pressed={play.showItems}
+        title="Show the rings, gems, pads and barriers while editing"
+      >
+        Items
+      </button>
+      <button
+        class="button"
+        onclick={controller.reshuffleItems}
+        title="A new item layout for this track"
+      >
+        Reshuffle
+      </button>
       <button
         class="button icon"
         onclick={controller.undo}
@@ -300,6 +317,12 @@
     min-height: 28px;
     padding: 0 10px;
     font-size: 12px;
+  }
+
+  .button.on {
+    border-color: var(--accent);
+    color: var(--accent-text);
+    background: var(--accent-soft);
   }
 
   .button.blocked {

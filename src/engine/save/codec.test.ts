@@ -19,12 +19,34 @@ describe('share codec', () => {
     },
   );
 
-  it('keeps the theme and a unicode name', () => {
-    const doc = createTrackDoc('Löopy ✨', 'xeno-reach', [createSection('loop', { radius: 12.5 })]);
+  it('keeps the theme, the seed and a unicode name', () => {
+    const doc = createTrackDoc(
+      'Löopy ✨',
+      'xeno-reach',
+      [createSection('loop', { radius: 12.5 })],
+      4242,
+    );
     const decoded = decodeTrack(encodeTrack(doc));
     expect(decoded?.name).toBe('Löopy ✨');
     expect(decoded?.theme).toBe('xeno-reach');
+    expect(decoded?.seed).toBe(4242);
     expect(decoded?.sections[0]?.params.radius).toBe(12.5);
+  });
+
+  it('still opens a version 1 link, with the default seed', () => {
+    // Version 1 bytes by hand: version, theme, name, count, then two straights of 24 m.
+    const bytes = [1, 0, 4, 70, 108, 111, 119, 2, 0, 0, 20, 0, 0, 0, 20, 0];
+    const v1 = btoa(String.fromCharCode(...bytes))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    const decoded = decodeTrack(v1);
+    expect(decoded?.name).toBe('Flow');
+    expect(decoded?.seed).toBe(1);
+    expect(decoded?.sections).toEqual([
+      { type: 'straight', params: { length: 24, tunnel: false } },
+      { type: 'straight', params: { length: 24, tunnel: false } },
+    ]);
   });
 
   it('rejects garbage, truncated and tampered strings', () => {

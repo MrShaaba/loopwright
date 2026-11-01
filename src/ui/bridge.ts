@@ -9,6 +9,7 @@ import { listSectionDefs } from '../engine/track/sections';
 import type { ParamValue, SectionType } from '../engine/track/sections/types';
 import { edit } from './state/edit.svelte';
 import { ui } from './state/game.svelte';
+import { play } from './state/play.svelte';
 import { ride } from './state/ride.svelte';
 
 /** Everything a HUD component may ask the engine to do. */
@@ -38,6 +39,9 @@ export interface Controller {
   toggleEndless: () => void;
   restartRide: () => void;
   steer: (input: number) => void;
+  setPlayMode: (mode: 'game' | 'cruise') => void;
+  toggleItems: () => void;
+  reshuffleItems: () => void;
   loadStarter: (id: string) => void;
   showIssue: (index: number) => void;
   selectSection: (id: string | null, focus?: boolean) => void;
@@ -87,6 +91,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   if (prefs.muted) game.audio.setMuted(true);
   if (prefs.view) game.ride.setView(prefs.view);
   if (prefs.endless !== undefined) game.ride.setEndless(prefs.endless);
+  if (prefs.playMode) game.setPlayMode(prefs.playMode);
   ui.track = game.summary();
 
   const persistPrefs = (): void => {
@@ -95,6 +100,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       muted: game.audio.muted,
       view: game.ride.camera.view,
       endless: game.ride.endless,
+      playMode: game.game.mode,
     });
   };
 
@@ -120,6 +126,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     }),
     game.events.on('track', (summary) => {
       ui.track = summary;
+      play.seed = summary.seed;
     }),
     game.events.on('reducedMotion', (reduced) => {
       ui.reducedMotion = reduced;
@@ -175,6 +182,30 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   };
   unsubscribe.push(game.events.on('validation', applyValidation));
   applyValidation(game.validation);
+  const applyGame = (status: ReturnType<typeof game.game.status>): void => {
+    play.mode = status.mode;
+    play.score = status.score;
+    play.combo = status.combo;
+    play.bestCombo = status.bestCombo;
+    play.rings = status.rings;
+    play.ringsTotal = status.ringsTotal;
+    play.gems = status.gems;
+    play.gemsTotal = status.gemsTotal;
+    play.valueFactor = status.valueFactor;
+  };
+  unsubscribe.push(game.game.events.on('status', applyGame));
+  applyGame(game.game.status());
+  play.showItems = game.game.showsInEditor;
+  let popId = 0;
+  unsubscribe.push(
+    game.events.on('pop', (pop) => {
+      const id = ++popId;
+      play.pops = [...play.pops.slice(-11), { id, ...pop }];
+      setTimeout(() => {
+        play.pops = play.pops.filter((p) => p.id !== id);
+      }, 950);
+    }),
+  );
 
   const toggleHelp = (): void => {
     ui.helpOpen = !ui.helpOpen;
@@ -290,6 +321,18 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     },
     restartRide: () => game.ride.restart(),
     steer: (input) => game.ride.setSteer(input),
+    setPlayMode: (mode) => {
+      game.setPlayMode(mode);
+      persistPrefs();
+    },
+    toggleItems: () => {
+      game.game.setShowInEditor(!game.game.showsInEditor);
+      play.showItems = game.game.showsInEditor;
+    },
+    reshuffleItems: () => {
+      game.reshuffleItems();
+      game.toast('New item layout');
+    },
     loadStarter: (id) => {
       const found = getStarter(id);
       if (!found) return;

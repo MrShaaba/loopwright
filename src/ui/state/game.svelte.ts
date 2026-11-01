@@ -26,7 +26,7 @@ export const ui: UiState = $state({
   fps: 0,
   renderScale: 1,
   theme: { id: '', name: '', tagline: '' },
-  track: { name: '', length: 0, sections: 0 },
+  track: { name: '', length: 0, sections: 0, seed: 1 },
   helpOpen: false,
   reducedMotion: false,
   toast: { text: '', id: 0 },

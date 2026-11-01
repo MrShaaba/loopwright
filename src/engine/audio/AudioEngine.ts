@@ -42,6 +42,7 @@ export class AudioEngine {
   private rollGain: GainNode | null = null;
   private rollFilter: BiquadFilterNode | null = null;
   private rollOsc: OscillatorNode | null = null;
+  private fx: GainNode | null = null;
   private mutedFlag = false;
 
   get muted(): boolean {
@@ -64,6 +65,10 @@ export class AudioEngine {
     master.gain.value = this.mutedFlag ? 0 : 1;
     master.connect(context.destination);
     this.master = master;
+    const fx = context.createGain();
+    fx.gain.value = 0.9;
+    fx.connect(master);
+    this.fx = fx;
 
     // Wind: white noise through a band-pass whose centre rises with speed.
     const wind = loopSource(context, noiseBuffer(context, 2, false));
@@ -119,6 +124,31 @@ export class AudioEngine {
       RAMP,
     );
     this.rollGain?.gain.setTargetAtTime(Math.sqrt(factor) * ROLL.gain, t, RAMP);
+  }
+
+  /** A short two-note chime for a ring; the pitch climbs with the combo and settles after a dozen. */
+  chime(combo: number): void {
+    const context = this.context;
+    const fx = this.fx;
+    if (!context || !fx) return;
+    const t = context.currentTime;
+    const semitone = Math.min(12, Math.max(0, combo - 1));
+    const base = 660 * Math.pow(2, semitone / 12);
+    for (const [offset, ratio, gain] of [
+      [0, 1, 0.22],
+      [0.06, 1.5, 0.16],
+    ] as const) {
+      const osc = context.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = base * ratio;
+      const env = context.createGain();
+      env.gain.setValueAtTime(0, t + offset);
+      env.gain.linearRampToValueAtTime(gain, t + offset + 0.008);
+      env.gain.exponentialRampToValueAtTime(0.001, t + offset + 0.22);
+      osc.connect(env).connect(fx);
+      osc.start(t + offset);
+      osc.stop(t + offset + 0.25);
+    }
   }
 
   setMuted(muted: boolean): void {

@@ -9,11 +9,32 @@ export interface TrackDoc {
   version: typeof TRACK_FORMAT_VERSION;
   name: string;
   theme: string;
+  /** Seed for the gameplay item layout. */
+  seed: number;
   sections: SectionSpec[];
 }
 
-export function createTrackDoc(name: string, theme: string, sections: SectionSpec[]): TrackDoc {
-  return { version: TRACK_FORMAT_VERSION, name, theme, sections: sections.map(cloneSection) };
+export const DEFAULT_SEED = 1;
+export const MAX_SEED = 65535;
+
+export function createTrackDoc(
+  name: string,
+  theme: string,
+  sections: SectionSpec[],
+  seed = DEFAULT_SEED,
+): TrackDoc {
+  return {
+    version: TRACK_FORMAT_VERSION,
+    name,
+    theme,
+    seed: normaliseSeed(seed),
+    sections: sections.map(cloneSection),
+  };
+}
+
+export function normaliseSeed(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_SEED;
+  return Math.min(MAX_SEED, Math.max(0, Math.round(value)));
 }
 
 export function cloneSection(section: SectionSpec): SectionSpec {
@@ -52,6 +73,7 @@ export function parseTrackDoc(raw: unknown): TrackDoc | null {
     version: TRACK_FORMAT_VERSION,
     name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.slice(0, 80) : 'Untitled',
     theme: typeof raw.theme === 'string' ? raw.theme : 'minimal',
+    seed: normaliseSeed(raw.seed),
     sections,
   };
 }

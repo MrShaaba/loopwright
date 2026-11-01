@@ -4,6 +4,7 @@
   import HelpOverlay from './components/HelpOverlay.svelte';
   import Inspector from './components/Inspector.svelte';
   import LoadingScreen from './components/LoadingScreen.svelte';
+  import Pops from './components/Pops.svelte';
   import RideHud from './components/RideHud.svelte';
   import Timeline from './components/Timeline.svelte';
   import Toast from './components/Toast.svelte';
@@ -45,6 +46,7 @@
   <div class="hud" class:riding={ui.mode === 'ride'}>
     <TopBar {controller} />
     {#if ui.mode === 'ride'}
+      <Pops />
       <RideHud {controller} />
     {:else}
       <Timeline {controller} />

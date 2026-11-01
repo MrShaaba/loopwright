@@ -1,6 +1,7 @@
 <script lang="ts">
   import { RIDE_VIEW_LABELS } from '../../engine/camera/RideCamera';
   import type { Controller } from '../bridge';
+  import { play } from '../state/play.svelte';
   import { ride } from '../state/ride.svelte';
 
   let { controller }: { controller: Controller } = $props();
@@ -40,6 +41,24 @@
       <span class="badge paused">Paused</span>
     {/if}
   </div>
+  {#if play.mode === 'game'}
+    <div class="score panel">
+      <span class="score-value">{play.score.toLocaleString()}</span>
+      <span class="score-row">
+        <span class="combo" class:hot={play.combo >= 5}>
+          {#if play.combo > 0}×{play.combo} combo{:else}no combo{/if}
+        </span>
+        <span class="gems">◆ {play.gems}/{play.gemsTotal}</span>
+        <span class="rings">○ {play.rings}/{play.ringsTotal}</span>
+      </span>
+      {#if play.valueFactor < 1}
+        <span class="value-note"
+          >rings worth {Math.round(play.valueFactor * 100)}% until you rebuild speed</span
+        >
+      {/if}
+    </div>
+  {/if}
+
   <p class="gforce" class:airtime={ride.gVertical < 0.4} class:heavy={ride.gVertical > 2.5}>
     {#if ride.gVertical < 0.4}
       Airtime
@@ -143,6 +162,24 @@
       <span class="kbd">↓</span> nudge
     </p>
     <div class="buttons">
+      <div class="segmented" role="group" aria-label="Play mode">
+        <button
+          class="segment"
+          class:active={play.mode === 'game'}
+          aria-pressed={play.mode === 'game'}
+          onclick={() => controller.setPlayMode('game')}
+        >
+          Game
+        </button>
+        <button
+          class="segment"
+          class:active={play.mode === 'cruise'}
+          aria-pressed={play.mode === 'cruise'}
+          onclick={() => controller.setPlayMode('cruise')}
+        >
+          Cruise
+        </button>
+      </div>
       <button class="button" onclick={() => controller.cycleView()} title="Switch view (C)">
         {RIDE_VIEW_LABELS[ride.view]} <span class="kbd">C</span>
       </button>
@@ -258,6 +295,68 @@
     background: var(--accent);
     box-shadow: 0 0 12px var(--accent);
     transition: width 0.05s linear;
+  }
+
+  .score {
+    position: absolute;
+    top: calc(76px + var(--safe-top));
+    left: calc(14px + var(--safe-left));
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 200px;
+    padding: 10px 14px;
+  }
+
+  .score-value {
+    font-size: 30px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .score-row {
+    display: flex;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .combo.hot {
+    color: var(--accent-text);
+  }
+
+  .gems {
+    color: #ffb8ff;
+  }
+
+  .value-note {
+    font-size: 11px;
+    color: var(--warn);
+  }
+
+  .segmented {
+    display: flex;
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  .segment {
+    min-height: 30px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .segment.active {
+    background: var(--accent-soft);
+    color: var(--accent-text);
   }
 
   .steer {
