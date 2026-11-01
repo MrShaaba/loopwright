@@ -6,6 +6,7 @@
   import LoadingScreen from './components/LoadingScreen.svelte';
   import Pops from './components/Pops.svelte';
   import RideHud from './components/RideHud.svelte';
+  import SummaryCard from './components/SummaryCard.svelte';
   import Timeline from './components/Timeline.svelte';
   import Toast from './components/Toast.svelte';
   import TopBar from './components/TopBar.svelte';
@@ -48,6 +49,7 @@
     {#if ui.mode === 'ride'}
       <Pops />
       <RideHud {controller} />
+      <SummaryCard {controller} />
     {:else}
       <Timeline {controller} />
       <Inspector {controller} />

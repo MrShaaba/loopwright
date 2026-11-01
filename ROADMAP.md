@@ -1,8 +1,18 @@
 # Roadmap
 
 Loopwright is ride first: a glowing ball in a glass tube at the speed you choose. The ride, the
-slider editor, validation, five starter tracks, four looks and sharing shipped on 1 November 2026
-(see `docs/PLAN.md`). This file lists what would make it better, as concrete items.
+slider editor, validation, five starter tracks, four looks, sharing and the game layer shipped on
+1 November 2026 (see `docs/PLAN.md`). This file lists what would make it better, as concrete
+items.
+
+## The game
+
+- Lanes: show the ring line ahead as a faint guide so arcs can be read at 3x
+- A near-miss bonus for skimming a hazard, and a perfect-lap bonus for every ring
+- Gem placement that reads the track harder: after a jump landing, inside a corkscrew roll
+- Time attack: a second scoring mode that pays for lap time rather than rings
+- Ghost ball of your best lap on this track
+- Gamepad steering with the sticks, and a haptic tick on rings
 
 ## The ride
 

@@ -2,6 +2,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AudioEngine } from '../audio/AudioEngine';
 import { Emitter } from '../events';
 import type { RideController } from '../ride/RideController';
+import { loadScores, recordScore, type ScoreEntry } from '../save/scores';
 import type { CompiledTrack } from '../track/Track';
 import { createPhysicsTrack, wrapTheta, type PhysicsTrack } from '../ride/BallPhysics';
 import type { ItemView } from './ItemView';
@@ -37,12 +38,23 @@ export interface GameStatus {
   valueFactor: number;
   hazards: number;
   boosts: number;
+  /** Best score on this track so far, or null. */
+  topScore: number | null;
+}
+
+export interface LapSummary {
+  entry: ScoreEntry;
+  /** 1-based rank in the track's table, or null when it did not make the top ten. */
+  rank: number | null;
+  table: ScoreEntry[];
+  lap: number;
 }
 
 export interface GameEvents {
   status: GameStatus;
   pop: PopEvent;
   layout: ItemLayout;
+  summary: LapSummary;
 }
 
 /** Angular reach of the ball around the tube for each kind, radians. */
@@ -66,6 +78,8 @@ export class GameController {
   /** Items already resolved this lap, collected or missed. */
   private resolved = new Set<number>();
   private showInEditor = true;
+  private trackKey = '';
+  private topScore: number | null = null;
 
   constructor(
     compiled: CompiledTrack,
@@ -76,6 +90,37 @@ export class GameController {
   ) {
     this.track = createPhysicsTrack(compiled.frames);
     this.setTrack(compiled, seed);
+    this.ride.events.on('lap', (lap) => this.onLap(lap.lap, lap.seconds));
+  }
+
+  /** Which track the scores belong to: the share code, so an edit starts a fresh table. */
+  setTrackKey(key: string): void {
+    if (key === this.trackKey) return;
+    this.trackKey = key;
+    this.topScore = loadScores(key)[0]?.score ?? null;
+    this.emitStatus();
+  }
+
+  /** Each lap is its own scored run: record it, hand the HUD a summary, then start fresh. */
+  private onLap(lap: number, seconds: number): void {
+    if (this.mode !== 'game') return;
+    const entry: ScoreEntry = {
+      score: this.stats.score,
+      rings: this.stats.rings,
+      gems: this.stats.gems,
+      bestCombo: this.stats.bestCombo,
+      topSpeed: Math.round(this.stats.topSpeedKmh),
+      lapTime: seconds,
+      multiplier: this.ride.multiplier,
+      date: new Date().toISOString(),
+    };
+    const result = this.trackKey ? recordScore(this.trackKey, entry) : { rank: null, table: [] };
+    this.topScore = result.table[0]?.score ?? this.topScore;
+    this.events.emit('summary', { entry, rank: result.rank, table: result.table, lap });
+    this.stats = createRunStats();
+    this.valueFactor = 1;
+    this.speedAtHit = 0;
+    this.emitStatus();
   }
 
   /** Regenerates the layout for a track and seed. */
@@ -240,6 +285,7 @@ export class GameController {
       valueFactor: this.valueFactor,
       hazards: this.stats.hazards,
       boosts: this.stats.boosts,
+      topScore: this.topScore,
     };
   }
 

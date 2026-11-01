@@ -162,6 +162,7 @@ export class Game {
     });
     this.ride.events.on('active', (active) => this.game.onRide(active));
     this.ride.setTrackKey(encodeTrack(this.doc));
+    this.game.setTrackKey(encodeTrack(this.doc));
     this.ride.events.on('lap', (lap) => {
       if (lap.best) this.toast(`New best lap: ${formatLap(lap.seconds)}`);
     });
@@ -399,6 +400,7 @@ export class Game {
     this.ride.syncTrack(this.compiled);
     this.ride.setTrackKey(encodeTrack(this.doc));
     this.game.setTrack(this.compiled, this.doc.seed);
+    this.game.setTrackKey(encodeTrack(this.doc));
     this.validation = validateTrack(this.doc.sections, this.compiled);
     this.markers.show(this.validation.issues);
     this.persist();
@@ -438,6 +440,7 @@ export class Game {
     this.doc = createTrackDoc(this.doc.name, this.doc.theme, this.doc.sections, seed);
     this.game.setTrack(this.compiled, this.doc.seed);
     this.ride.setTrackKey(encodeTrack(this.doc));
+    this.game.setTrackKey(encodeTrack(this.doc));
     this.persist();
     this.events.emit('track', this.summary());
   }

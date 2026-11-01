@@ -1,4 +1,4 @@
-import type { PlayMode } from '../../engine/game/GameController';
+import type { LapSummary, PlayMode } from '../../engine/game/GameController';
 
 export interface Pop {
   id: number;
@@ -22,6 +22,8 @@ export interface PlayUiState {
   showItems: boolean;
   seed: number;
   pops: Pop[];
+  topScore: number | null;
+  summary: LapSummary | null;
 }
 
 export const play: PlayUiState = $state({
@@ -37,4 +39,6 @@ export const play: PlayUiState = $state({
   showItems: true,
   seed: 1,
   pops: [],
+  topScore: null,
+  summary: null,
 });

@@ -39,6 +39,7 @@ export interface Controller {
   toggleEndless: () => void;
   restartRide: () => void;
   steer: (input: number) => void;
+  dismissSummary: () => void;
   setPlayMode: (mode: 'game' | 'cruise') => void;
   toggleItems: () => void;
   reshuffleItems: () => void;
@@ -192,10 +193,27 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     play.gems = status.gems;
     play.gemsTotal = status.gemsTotal;
     play.valueFactor = status.valueFactor;
+    play.topScore = status.topScore;
   };
   unsubscribe.push(game.game.events.on('status', applyGame));
   applyGame(game.game.status());
   play.showItems = game.game.showsInEditor;
+  let summaryTimer: ReturnType<typeof setTimeout> | null = null;
+  unsubscribe.push(
+    game.game.events.on('summary', (summary) => {
+      play.summary = summary;
+      if (summaryTimer) clearTimeout(summaryTimer);
+      // With Endless on the ride keeps going, so the card steps aside by itself.
+      if (game.ride.endless) {
+        summaryTimer = setTimeout(() => {
+          play.summary = null;
+        }, 5000);
+      }
+    }),
+    game.ride.events.on('active', (active) => {
+      if (!active) play.summary = null;
+    }),
+  );
   let popId = 0;
   unsubscribe.push(
     game.events.on('pop', (pop) => {
@@ -319,7 +337,13 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       game.ride.setEndless(!game.ride.endless);
       persistPrefs();
     },
-    restartRide: () => game.ride.restart(),
+    restartRide: () => {
+      play.summary = null;
+      game.ride.restart();
+    },
+    dismissSummary: () => {
+      play.summary = null;
+    },
     steer: (input) => game.ride.setSteer(input),
     setPlayMode: (mode) => {
       game.setPlayMode(mode);

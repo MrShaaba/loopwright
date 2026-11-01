@@ -45,6 +45,9 @@
     <div class="score panel">
       <span class="score-value">{play.score.toLocaleString()}</span>
       <span class="score-row">
+        {#if play.topScore !== null}
+          <span class="top">top {play.topScore.toLocaleString()}</span>
+        {/if}
         <span class="combo" class:hot={play.combo >= 5}>
           {#if play.combo > 0}×{play.combo} combo{:else}no combo{/if}
         </span>
@@ -80,7 +83,7 @@
     <div class="fill" style="width: {ride.progress * 100}%"></div>
   </div>
 
-  {#if ride.phase === 'complete'}
+  {#if ride.phase === 'complete' && !play.summary}
     <div class="finished panel">
       <p class="finished-title">Lap complete · {lap(ride.lastLap)}</p>
       <p class="finished-hint">
@@ -325,6 +328,10 @@
 
   .combo.hot {
     color: var(--accent-text);
+  }
+
+  .top {
+    color: var(--text);
   }
 
   .gems {
