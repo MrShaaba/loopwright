@@ -18,6 +18,13 @@ export interface ClosureInfo {
 export const CLOSE_DISTANCE = 0.75;
 export const CLOSE_HEADING_DEG = 8;
 export const CLOSE_PITCH_DEG = 8;
+/** Minimum height of the rails above the ground, in metres. */
+export const GROUND_CLEARANCE = 0.45;
+
+export interface TrackModelOptions {
+  /** Terrain height query; when given, pieces that would dig into the ground are refused. */
+  heightAt?: (x: number, z: number) => number;
+}
 
 export interface Candidate {
   geometry: PieceGeometry;
@@ -39,7 +46,10 @@ export class TrackModel {
   /** Increments on every rebuild so views can skip stale work. */
   version = 0;
 
-  constructor(readonly entry: Pose = STATION_ENTRY) {
+  constructor(
+    readonly entry: Pose = STATION_ENTRY,
+    private readonly options: TrackModelOptions = {},
+  ) {
     this.exitPose = clonePose(entry);
     this.pieces.push({ type: 'station', params: {} });
     this.rebuild();
@@ -74,7 +84,18 @@ export class TrackModel {
     const geometry = def.build(this.exitPose, params);
     if (this.closure.closed) return { geometry, reason: 'The circuit is closed' };
     const reason = def.check?.(this.exitPose, params) ?? null;
-    return { geometry, reason };
+    if (reason) return { geometry, reason };
+    return { geometry, reason: this.groundReason(geometry) };
+  }
+
+  private groundReason(geometry: PieceGeometry): string | null {
+    const { heightAt } = this.options;
+    if (!heightAt) return null;
+    for (const key of geometry.keys) {
+      const clearance = key.position.y - heightAt(key.position.x, key.position.z);
+      if (clearance < GROUND_CLEARANCE) return 'Track would dig into the ground';
+    }
+    return null;
   }
 
   /** Frames for a candidate piece alone, continuous with the end of the track. */

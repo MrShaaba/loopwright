@@ -140,6 +140,15 @@ describe('TrackModel', () => {
     );
   });
 
+  it('refuses pieces that would dig into the ground when it knows the terrain', () => {
+    const model = new TrackModel(undefined, { heightAt: () => 0 });
+    expect(model.candidate(getPiece('lift-hill'), { height: 8 }).reason).toBeNull();
+    expect(model.candidate(getPiece('drop'), { depth: 12 }).reason).toMatch(/ground/i);
+    expect(model.candidate(getPiece('slope-down'), {}).reason).toMatch(/ground/i);
+    model.push({ type: 'lift-hill', params: { height: 24 } });
+    expect(model.candidate(getPiece('drop'), { depth: 20 }).reason).toBeNull();
+  });
+
   it('builds ghost frames for a candidate that continue from the track end', () => {
     const model = new TrackModel();
     const def = getPiece('curve');

@@ -45,7 +45,7 @@
   <div class="hud">
     <TopBar {controller} />
     {#if ui.dockOpen}
-      <Dock />
+      <Dock {controller} />
     {/if}
     <CameraPanel {controller} />
     <StatusBar />

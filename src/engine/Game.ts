@@ -1,7 +1,9 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
+import { PointerEventTypes } from '@babylonjs/core/Events/pointerEvents';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateScreenshotAsync } from '@babylonjs/core/Misc/screenshotTools';
 import { Scene } from '@babylonjs/core/scene';
+import { BuildController } from './build/BuildController';
 import { CameraRig, type CameraMode, type CameraPreset } from './camera/CameraRig';
 import { Emitter } from './events';
 import { KeyRegistry, type KeyBinding } from './input/Keys';
@@ -11,6 +13,9 @@ import { PerformanceGovernor, type PerformanceSample } from './scene/Performance
 import { Sky } from './scene/Sky';
 import { Terrain } from './scene/Terrain';
 import type { ThemeConfig } from './theme/ThemeConfig';
+import { GhostView } from './track/mesh/GhostView';
+import { TrackView } from './track/mesh/TrackView';
+import { TrackModel } from './track/TrackModel';
 import { DEG } from './util/math';
 
 export type GameMode = 'build' | 'ride';
@@ -37,6 +42,10 @@ interface GameParts {
   lighting: Lighting;
   cameras: CameraRig;
   atmosphere: Atmosphere;
+  track: TrackModel;
+  build: BuildController;
+  trackView: TrackView;
+  ghostView: GhostView;
 }
 
 function nextFrame(): Promise<void> {
@@ -93,6 +102,10 @@ export class Game {
   readonly lighting: Lighting;
   readonly cameras: CameraRig;
   readonly atmosphere: Atmosphere;
+  readonly track: TrackModel;
+  readonly build: BuildController;
+  readonly trackView: TrackView;
+  readonly ghostView: GhostView;
   readonly performance: PerformanceGovernor;
   mode: GameMode = 'build';
   private readonly canvas: HTMLCanvasElement;
@@ -109,10 +122,21 @@ export class Game {
     this.lighting = parts.lighting;
     this.cameras = parts.cameras;
     this.atmosphere = parts.atmosphere;
+    this.track = parts.track;
+    this.build = parts.build;
+    this.trackView = parts.trackView;
+    this.ghostView = parts.ghostView;
     this.performance = new PerformanceGovernor(this.engine, (sample) =>
       this.events.emit('performance', sample),
     );
     this.cameras.onModeChange = (mode) => this.events.emit('cameraMode', mode);
+    this.build.events.on('track', () => {
+      this.trackView.rebuild(this.track.frames, this.track.closure.closed, this.track.exitPose);
+    });
+    this.build.events.on('ghost', (ghost) => {
+      if (ghost) this.ghostView.show(ghost.frames, ghost.valid);
+      else this.ghostView.hide();
+    });
     this.registerKeys();
   }
 
@@ -166,11 +190,38 @@ export class Game {
       glowExcluded: sky.glowExcluded,
     });
 
-    await report('Compiling shaders', 0.88);
+    await report('Laying the station', 0.82);
+    const track = new TrackModel(undefined, { heightAt: (x, z) => terrain.heightAt(x, z) });
+    const build = new BuildController(track);
+    const trackView = new TrackView(
+      scene,
+      theme.track,
+      lighting,
+      (x, z) => terrain.heightAt(x, z),
+      track.entry,
+    );
+    trackView.rebuild(track.frames, track.closure.closed, track.exitPose);
+    const ghostView = new GhostView(scene);
+
+    await report('Compiling shaders', 0.9);
     await scene.whenReadyAsync();
     await report('Opening the gates', 1);
 
-    return new Game({ canvas, engine, scene, theme, terrain, sky, lighting, cameras, atmosphere });
+    return new Game({
+      canvas,
+      engine,
+      scene,
+      theme,
+      terrain,
+      sky,
+      lighting,
+      cameras,
+      atmosphere,
+      track,
+      build,
+      trackView,
+      ghostView,
+    });
   }
 
   /** Starts the render loop and input listeners. */
@@ -184,6 +235,14 @@ export class Game {
     window.addEventListener('resize', onResize);
     this.disposers.push(() => window.removeEventListener('resize', onResize));
     this.disposers.push(this.keys.attach(window));
+
+    // A plain click (no drag) on the scene snaps the previewed piece on.
+    const tapObserver = this.scene.onPointerObservable.add((info) => {
+      if (info.type !== PointerEventTypes.POINTERTAP || info.event.button !== 0) return;
+      if (this.mode !== 'build' || this.cameras.mode !== 'orbit') return;
+      this.placePiece();
+    });
+    this.disposers.push(() => this.scene.onPointerObservable.remove(tapObserver));
 
     this.engine.runRenderLoop(() => {
       const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.1);
@@ -212,6 +271,19 @@ export class Game {
 
   flyTo(presetId: string): void {
     this.cameras.flyTo(presetId);
+  }
+
+  flyToTrackEnd(): void {
+    const end = this.track.exitPose.position;
+    this.cameras.flyToPoint(new Vector3(end.x, end.y + 1, end.z), 42);
+  }
+
+  /** Places the selected piece, or explains why it cannot be placed. */
+  placePiece(): void {
+    if (!this.build.selectedId) return;
+    if (this.build.place()) return;
+    const reason = this.build.selection().reason;
+    if (reason) this.toast(reason);
   }
 
   requestMode(mode: GameMode): void {
@@ -261,6 +333,37 @@ export class Game {
       });
     });
     this.keys.bind({
+      scope: 'build',
+      combo: 'Digit4',
+      label: 'Fly to the track end',
+      handler: () => this.flyToTrackEnd(),
+    });
+    this.keys.bind({
+      scope: 'build',
+      combo: 'Enter',
+      label: 'Place the previewed piece',
+      handler: () => this.placePiece(),
+    });
+    for (const combo of ['Backspace', 'Delete']) {
+      this.keys.bind({
+        scope: 'build',
+        combo,
+        label: 'Remove the last piece',
+        handler: () => {
+          if (!this.build.removeLast()) this.toast('Nothing to remove');
+        },
+      });
+    }
+    this.keys.bind({
+      scope: 'build',
+      combo: 'mod+KeyZ',
+      label: 'Undo',
+      handler: () => this.build.undo(),
+    });
+    for (const combo of ['shift+mod+KeyZ', 'mod+KeyY']) {
+      this.keys.bind({ scope: 'build', combo, label: 'Redo', handler: () => this.build.redo() });
+    }
+    this.keys.bind({
       scope: 'global',
       combo: 'KeyP',
       label: 'Save a photo of the view',
@@ -278,6 +381,9 @@ export class Game {
     this.disposed = true;
     this.engine.stopRenderLoop();
     for (const dispose of this.disposers) dispose();
+    this.ghostView.dispose();
+    this.trackView.dispose();
+    this.build.dispose();
     this.atmosphere.dispose();
     this.cameras.dispose();
     this.lighting.dispose();

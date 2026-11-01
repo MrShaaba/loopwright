@@ -187,6 +187,23 @@ export class CameraRig {
     return true;
   }
 
+  /** Glides the orbit camera's target to a point, keeping the current angles. */
+  flyToPoint(point: Vector3, radius: number): void {
+    if (this.mode === 'fly') this.setMode('orbit');
+    const cam = this.orbit;
+    const from = { radius: cam.radius, target: cam.target.clone() };
+    const target = point.clone();
+    this.tweens.cancelAll();
+    this.tweens.start({
+      duration: 1.1,
+      ease: easeInOutCubic,
+      onUpdate: (k) => {
+        cam.radius = lerp(from.radius, radius, k);
+        Vector3.LerpToRef(from.target, target, k, cam.target);
+      },
+    });
+  }
+
   update(dt: number): void {
     this.tweens.update(dt);
     const { heightAt } = this.options;

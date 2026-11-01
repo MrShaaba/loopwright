@@ -2,6 +2,9 @@ import type { CameraMode, CameraPreset } from '../engine/camera/CameraRig';
 import { Game, type GameMode } from '../engine/Game';
 import type { KeyBinding } from '../engine/input/Keys';
 import { getTheme } from '../engine/theme';
+import { listPieces } from '../engine/track/pieces';
+import type { ParamValue } from '../engine/track/types';
+import { build, type PaletteEntry } from './state/build.svelte';
 import { ui } from './state/game.svelte';
 
 /** Everything a HUD component may ask the engine to do. */
@@ -16,7 +19,31 @@ export interface Controller {
   takePhoto: () => void;
   toggleHelp: () => void;
   toggleDock: () => void;
+  selectPiece: (pieceId: string | null) => void;
+  setParam: (key: string, value: ParamValue) => void;
+  place: () => void;
+  removeLast: () => void;
+  undo: () => void;
+  redo: () => void;
+  goToTrackEnd: () => void;
   dispose: () => void;
+}
+
+function paletteEntries(): PaletteEntry[] {
+  return listPieces().map((def) => ({
+    id: def.id,
+    label: def.label,
+    category: def.category,
+    description: def.description,
+    params: Object.entries(def.params).map(([key, param]) => ({
+      key,
+      label: param.label,
+      options: param.options.map((value) => ({
+        value,
+        label: param.format ? param.format(value) : String(value),
+      })),
+    })),
+  }));
 }
 
 const DEFAULT_THEME = 'haunted-hollow';
@@ -58,7 +85,22 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     game.events.on('toast', (text) => {
       ui.toast = { text, id: ui.toast.id + 1 };
     }),
+    game.build.events.on('track', (summary) => {
+      build.track = summary;
+    }),
+    game.build.events.on('selection', (selection) => {
+      build.selectedId = selection.pieceId;
+      build.params = selection.params;
+      build.canPlace = selection.canPlace;
+      build.reason = selection.reason ?? '';
+    }),
+    game.build.events.on('history', (history) => {
+      build.canUndo = history.canUndo;
+      build.canRedo = history.canRedo;
+    }),
   ];
+  build.palette = paletteEntries();
+  game.build.publishAll();
 
   const toggleHelp = (): void => {
     ui.helpOpen = !ui.helpOpen;
@@ -78,11 +120,11 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   game.keys.bind({
     scope: 'global',
     combo: 'Escape',
-    label: 'Close the shortcuts panel',
+    label: 'Close the shortcuts panel, or drop the piece selection',
     handler: () => {
-      ui.helpOpen = false;
+      if (ui.helpOpen) ui.helpOpen = false;
+      else game.build.select(null);
     },
-    when: () => ui.helpOpen,
   });
 
   game.start();
@@ -107,6 +149,15 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     toggleDock: () => {
       ui.dockOpen = !ui.dockOpen;
     },
+    selectPiece: (pieceId) => game.build.select(pieceId),
+    setParam: (key, value) => game.build.setParam(key, value),
+    place: () => game.placePiece(),
+    removeLast: () => {
+      if (!game.build.removeLast()) game.toast('Nothing to remove');
+    },
+    undo: () => game.build.undo(),
+    redo: () => game.build.redo(),
+    goToTrackEnd: () => game.flyToTrackEnd(),
     dispose: () => {
       for (const off of unsubscribe) off();
       game.dispose();
