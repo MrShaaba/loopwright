@@ -23,49 +23,79 @@
     transition:fade={{ duration: 160 }}
   >
     <div class="head">
-      <p class="eyebrow">Lap {s.lap} complete · {SPEED_BAND_LABELS[s.band]}</p>
+      <p class="eyebrow">
+        {s.kind === 'time' ? 'Time attack' : 'Lap'}
+        {s.lap} complete · {SPEED_BAND_LABELS[s.band]}
+      </p>
       {#if s.rank !== null}
         <p class="rank" class:top={s.rank === 1}>
-          {s.rank === 1 ? 'New top score' : `#${s.rank} in this band`}
+          {s.rank === 1
+            ? s.kind === 'time'
+              ? 'Fastest lap: new ghost'
+              : 'New top score'
+            : `#${s.rank} in this band`}
         </p>
       {/if}
     </div>
-    <p class="total">{s.entry.score.toLocaleString()}</p>
-    <dl class="facts">
-      <div>
-        <dt>Rings</dt>
-        <dd>{s.entry.rings} / {play.ringsTotal}</dd>
-      </div>
-      <div>
-        <dt>Gems</dt>
-        <dd>{s.entry.gems} / {play.gemsTotal}</dd>
-      </div>
-      <div>
-        <dt>Best combo</dt>
-        <dd>×{s.entry.bestCombo}</dd>
-      </div>
-      <div>
-        <dt>Top speed</dt>
-        <dd>{s.entry.topSpeed} km/h</dd>
-      </div>
-      <div>
-        <dt>Lap time</dt>
-        <dd>{lap(s.entry.lapTime)}</dd>
-      </div>
-      <div>
-        <dt>Speed</dt>
-        <dd>{s.entry.multiplier.toFixed(2)}×</dd>
-      </div>
-    </dl>
+    {#if s.kind === 'time'}
+      <p class="total">{lap(s.entry.lapTime)}</p>
+      <dl class="facts">
+        <div>
+          <dt>Top speed</dt>
+          <dd>{s.entry.topSpeed} km/h</dd>
+        </div>
+        <div>
+          <dt>Speed</dt>
+          <dd>{s.entry.multiplier.toFixed(2)}×</dd>
+        </div>
+        <div>
+          <dt>Best</dt>
+          <dd>{s.table[0] ? lap(s.table[0].lapTime) : lap(s.entry.lapTime)}</dd>
+        </div>
+      </dl>
+    {:else}
+      <p class="total">{s.entry.score.toLocaleString()}</p>
+      <dl class="facts">
+        <div>
+          <dt>Rings</dt>
+          <dd>{s.entry.rings} / {play.ringsTotal}</dd>
+        </div>
+        <div>
+          <dt>Gems</dt>
+          <dd>{s.entry.gems} / {play.gemsTotal}</dd>
+        </div>
+        <div>
+          <dt>Best combo</dt>
+          <dd>×{s.entry.bestCombo}</dd>
+        </div>
+        <div>
+          <dt>Top speed</dt>
+          <dd>{s.entry.topSpeed} km/h</dd>
+        </div>
+        <div>
+          <dt>Lap time</dt>
+          <dd>{lap(s.entry.lapTime)}</dd>
+        </div>
+        <div>
+          <dt>Speed</dt>
+          <dd>{s.entry.multiplier.toFixed(2)}×</dd>
+        </div>
+      </dl>
+    {/if}
     {#if s.table.length > 1}
       <ol class="table">
         {#each s.table.slice(0, 5) as row, index (row.date + index)}
-          <li class:you={row.date === s.entry.date && row.score === s.entry.score}>
+          <li class:you={row.date === s.entry.date}>
             <span class="place">{index + 1}</span>
-            <span class="score">{row.score.toLocaleString()}</span>
-            <span class="meta"
-              >{row.rings} rings · {row.gems} gems · {row.multiplier.toFixed(2)}×</span
-            >
+            {#if s.kind === 'time'}
+              <span class="score">{lap(row.lapTime)}</span>
+              <span class="meta">{row.topSpeed} km/h · {row.multiplier.toFixed(2)}×</span>
+            {:else}
+              <span class="score">{row.score.toLocaleString()}</span>
+              <span class="meta"
+                >{row.rings} rings · {row.gems} gems · {row.multiplier.toFixed(2)}×</span
+              >
+            {/if}
           </li>
         {/each}
       </ol>
