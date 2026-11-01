@@ -283,17 +283,48 @@ export class Game {
     });
     this.disposers.push(() => this.scene.onPointerObservable.remove(tapObserver));
 
-    const onShift = (event: KeyboardEvent): void => {
-      if (event.key !== 'Shift') return;
-      this.ride.setBoost(event.type === 'keydown');
+    // Held keys: Shift boosts, left and right (or A and D) steer around the tube.
+    const held = new Set<string>();
+    const steerFor = (code: string): number =>
+      code === 'ArrowLeft' || code === 'KeyA'
+        ? -1
+        : code === 'ArrowRight' || code === 'KeyD'
+          ? 1
+          : 0;
+    const applySteer = (): void => {
+      let input = 0;
+      for (const code of held) input += steerFor(code);
+      this.ride.setSteer(input);
     };
-    const onBlur = (): void => this.ride.setBoost(false);
-    window.addEventListener('keydown', onShift);
-    window.addEventListener('keyup', onShift);
+    const onHeldKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Shift') {
+        this.ride.setBoost(event.type === 'keydown');
+        return;
+      }
+      if (steerFor(event.code) === 0) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+      ) {
+        return;
+      }
+      if (event.type === 'keydown') held.add(event.code);
+      else held.delete(event.code);
+      if (this.mode === 'ride') event.preventDefault();
+      applySteer();
+    };
+    const onBlur = (): void => {
+      held.clear();
+      this.ride.setBoost(false);
+      this.ride.setSteer(0);
+    };
+    window.addEventListener('keydown', onHeldKey);
+    window.addEventListener('keyup', onHeldKey);
     window.addEventListener('blur', onBlur);
     this.disposers.push(() => {
-      window.removeEventListener('keydown', onShift);
-      window.removeEventListener('keyup', onShift);
+      window.removeEventListener('keydown', onHeldKey);
+      window.removeEventListener('keyup', onHeldKey);
       window.removeEventListener('blur', onBlur);
     });
 

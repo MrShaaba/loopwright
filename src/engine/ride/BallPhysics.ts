@@ -106,10 +106,23 @@ export type RidePhase = 'running' | 'finishing' | 'complete';
 /** Deceleration applied after the final lap when the ride is not endless, m/s^2. */
 const FINISH_BRAKE = 5;
 
+/** Steering around the inside of the tube: angular rate at full input, rad/s, and its smoothing. */
+export const STEER = {
+  maxRate: 3.0,
+  /** Seconds to reach the full rate when a key is held. */
+  attackTau: 0.12,
+  /** Seconds for the rate to die away once released: the "little momentum". */
+  releaseTau: 0.3,
+} as const;
+
 export interface RideState {
   phase: RidePhase;
   /** Arc length of the ball along the loop. */
   s: number;
+  /** Angle of the ball around the tube's centre, radians: 0 on the floor, positive to the right. */
+  theta: number;
+  /** Angular rate of the steering, rad/s. */
+  omega: number;
   /** Base speed from physics, m/s, before the multiplier. */
   v: number;
   /** Seconds of ride time; pauses do not count. */
@@ -127,6 +140,8 @@ export function createRideState(params: PhysicsParams = PHYSICS_DEFAULTS): RideS
   return {
     phase: 'running',
     s: 0,
+    theta: 0,
+    omega: 0,
     v: params.startSpeed,
     time: 0,
     laps: 0,
@@ -139,12 +154,34 @@ export function createRideState(params: PhysicsParams = PHYSICS_DEFAULTS): RideS
 export function resetRide(state: RideState, params: PhysicsParams = PHYSICS_DEFAULTS): void {
   state.phase = 'running';
   state.s = 0;
+  state.theta = 0;
+  state.omega = 0;
   state.v = params.startSpeed;
   state.time = 0;
   state.laps = 0;
   state.lapStart = 0;
   state.lastLap = 0;
   state.travelled = 0;
+}
+
+/** Wraps an angle into (-PI, PI]. */
+export function wrapTheta(theta: number): number {
+  let a = theta % (Math.PI * 2);
+  if (a > Math.PI) a -= Math.PI * 2;
+  if (a <= -Math.PI) a += Math.PI * 2;
+  return a;
+}
+
+/**
+ * Moves the ball around the tube wall. `input` is -1 (left), 0 or 1 (right). The rate eases
+ * towards full input and coasts to a stop when released, so steering has a little momentum.
+ */
+export function stepSteer(state: RideState, input: number, dt: number): void {
+  const target = Math.max(-1, Math.min(1, input)) * STEER.maxRate;
+  const tau = input !== 0 ? STEER.attackTau : STEER.releaseTau;
+  state.omega += (target - state.omega) * (1 - Math.exp(-dt / tau));
+  if (input === 0 && Math.abs(state.omega) < 0.01) state.omega = 0;
+  state.theta = wrapTheta(state.theta + state.omega * dt);
 }
 
 const SAMPLE = createSample();

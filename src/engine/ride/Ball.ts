@@ -16,8 +16,20 @@ import { TUBE_RADIUS } from '../tube/TubeView';
 import type { TrackSample } from './BallPhysics';
 
 export const BALL_RADIUS = 0.42;
-/** The ball rolls on the tube floor rather than floating at its centre. */
+/** The ball rolls on the tube wall rather than floating at its centre. */
 export const FLOOR_OFFSET = TUBE_RADIUS - BALL_RADIUS - 0.05;
+
+/** Unit direction from the tube's centre to the wall at angle `theta`: 0 is the floor, positive is right. */
+export function radialToRef(sample: TrackSample, theta: number, out: Vector3): Vector3 {
+  const c = -Math.cos(theta);
+  const sn = Math.sin(theta);
+  out.set(
+    sample.up.x * c + sample.right.x * sn,
+    sample.up.y * c + sample.right.y * sn,
+    sample.up.z * c + sample.right.z * sn,
+  );
+  return out;
+}
 
 /** A glowing sphere that rolls along the tube floor and lights what it passes. */
 export class Ball {
@@ -31,6 +43,8 @@ export class Ball {
   private texture: DynamicTexture | null = null;
   private haloTexture: DynamicTexture | null = null;
   private readonly scratch = new Vector3();
+  private readonly radial = new Vector3();
+  private readonly axis = new Vector3();
 
   constructor(
     private readonly scene: Scene,
@@ -84,12 +98,22 @@ export class Ball {
     return this.mesh.position;
   }
 
-  /** Moves the ball to a track sample and rolls it by the distance travelled since the last call. */
-  place(sample: TrackSample, rolled: number): void {
-    sample.up.scaleToRef(-FLOOR_OFFSET, this.scratch);
+  /**
+   * Moves the ball to a track sample at angle `theta` around the tube (0 on the floor, positive
+   * to the right) and rolls it by the distance travelled since the last call.
+   */
+  place(sample: TrackSample, rolled: number, theta = 0): void {
+    radialToRef(sample, theta, this.radial);
+    this.radial.scaleToRef(FLOOR_OFFSET, this.scratch);
     this.mesh.position.copyFrom(sample.position).addInPlace(this.scratch);
     this.halo.position.copyFrom(this.mesh.position);
-    if (rolled !== 0) this.mesh.rotate(sample.right, rolled / BALL_RADIUS, Space.WORLD);
+    if (rolled !== 0) {
+      // Rolling on the wall it touches: the axis is tangent x contact direction.
+      Vector3.CrossToRef(sample.tangent, this.radial, this.axis);
+      if (this.axis.lengthSquared() > 1e-8) {
+        this.mesh.rotate(this.axis.normalize(), rolled / BALL_RADIUS, Space.WORLD);
+      }
+    }
   }
 
   dispose(): void {

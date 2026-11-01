@@ -37,6 +37,7 @@ export interface Controller {
   cycleView: () => void;
   toggleEndless: () => void;
   restartRide: () => void;
+  steer: (input: number) => void;
   loadStarter: (id: string) => void;
   showIssue: (index: number) => void;
   selectSection: (id: string | null, focus?: boolean) => void;
@@ -288,6 +289,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       persistPrefs();
     },
     restartRide: () => game.ride.restart(),
+    steer: (input) => game.ride.setSteer(input),
     loadStarter: (id) => {
       const found = getStarter(id);
       if (!found) return;

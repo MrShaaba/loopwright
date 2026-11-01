@@ -12,6 +12,7 @@
   ];
 
   const mouse = [
+    ['← → or A D', 'Steer around the tube while riding'],
     ['Click the tube', 'Select that section'],
     ['Drag', 'Orbit around the track'],
     ['Right-drag', 'Pan across the floor'],

@@ -15,6 +15,18 @@
     const input = event.currentTarget as HTMLInputElement;
     controller.setMultiplier(Number(input.value));
   }
+
+  function hold(direction: number): (event: PointerEvent) => void {
+    return (event) => {
+      event.preventDefault();
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+      controller.steer(direction);
+    };
+  }
+
+  function release(): void {
+    controller.steer(0);
+  }
 </script>
 
 <div class="ride-hud">
@@ -71,6 +83,29 @@
     {/if}
     <span class="stat"><span class="label">Around</span> {Math.round(ride.progress * 100)}%</span>
   </div>
+
+  <button
+    class="steer left"
+    aria-label="Steer left"
+    onpointerdown={hold(-1)}
+    onpointerup={release}
+    onpointercancel={release}
+    onlostpointercapture={release}
+    oncontextmenu={(event) => event.preventDefault()}
+  >
+    ◀
+  </button>
+  <button
+    class="steer right"
+    aria-label="Steer right"
+    onpointerdown={hold(1)}
+    onpointerup={release}
+    onpointercancel={release}
+    onlostpointercapture={release}
+    oncontextmenu={(event) => event.preventDefault()}
+  >
+    ▶
+  </button>
 
   <div class="controls panel">
     <div class="multiplier">
@@ -223,6 +258,42 @@
     background: var(--accent);
     box-shadow: 0 0 12px var(--accent);
     transition: width 0.05s linear;
+  }
+
+  .steer {
+    position: absolute;
+    bottom: calc(96px + var(--safe-bottom));
+    width: 72px;
+    height: 120px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: rgba(13, 15, 28, 0.45);
+    color: var(--text);
+    font-size: 22px;
+    pointer-events: auto;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    display: none;
+  }
+
+  .steer:active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+
+  .steer.left {
+    left: calc(14px + var(--safe-left));
+  }
+
+  .steer.right {
+    right: calc(14px + var(--safe-right));
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    .steer {
+      display: block;
+    }
   }
 
   .finished {

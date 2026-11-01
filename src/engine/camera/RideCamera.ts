@@ -2,7 +2,6 @@ import type { Camera } from '@babylonjs/core/Cameras/camera';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import { Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { Scene } from '@babylonjs/core/scene';
-import { FLOOR_OFFSET } from '../ride/Ball';
 import { createSample, sampleTrackToRef, type PhysicsTrack } from '../ride/BallPhysics';
 import { clamp } from '../util/math';
 
@@ -69,6 +68,7 @@ export class RideCamera {
   private readonly behind = createSample();
   private readonly ahead = createSample();
   private readonly ball = createSample();
+  private readonly ballPoint = new Vector3();
   private readonly lookAt = new Vector3();
   private readonly targetPosition = new Vector3();
   private readonly forward = new Vector3();
@@ -107,9 +107,9 @@ export class RideCamera {
   }
 
   /** Snaps to the ball's position and makes this the active camera. */
-  activate(track: PhysicsTrack, s: number): void {
+  activate(track: PhysicsTrack, s: number, ballPosition?: Vector3): void {
     this.active = true;
-    this.solve(track, s, 0);
+    this.solve(track, s, 0, ballPosition);
     this.camera.position.copyFrom(this.targetPosition);
     this.rotation.copyFrom(this.targetRotation);
     this.camera.rotationQuaternion?.copyFrom(this.rotation);
@@ -121,17 +121,17 @@ export class RideCamera {
     this.active = false;
   }
 
-  private solve(track: PhysicsTrack, s: number, lift: number): void {
+  private solve(track: PhysicsTrack, s: number, lift: number, ballPosition?: Vector3): void {
     const spec = this.spec;
     sampleTrackToRef(track, s - spec.behind, this.behind);
     sampleTrackToRef(track, s, this.ball);
     sampleTrackToRef(track, s + spec.lookAhead, this.ahead);
     this.behind.up.scaleToRef(spec.lift + lift, this.scratch);
     this.targetPosition.copyFrom(this.behind.position).addInPlace(this.scratch);
-    // Aim between the ball itself (which rides the tube floor) and the centre line ahead.
-    this.ball.up.scaleToRef(-FLOOR_OFFSET, this.scratch);
-    this.scratch.addInPlace(this.ball.position);
-    Vector3.LerpToRef(this.scratch, this.ahead.position, spec.lookBlend, this.lookAt);
+    // Aim between the ball itself (wherever it sits on the wall) and the centre line ahead.
+    if (ballPosition) this.ballPoint.copyFrom(ballPosition);
+    else this.ballPoint.copyFrom(this.ball.position).subtractInPlace(this.ball.up);
+    Vector3.LerpToRef(this.ballPoint, this.ahead.position, spec.lookBlend, this.lookAt);
     this.lookAt.subtractToRef(this.targetPosition, this.forward);
     if (this.forward.lengthSquared() < 1e-8) this.forward.copyFrom(this.behind.tangent);
     this.forward.normalize();
@@ -162,10 +162,11 @@ export class RideCamera {
     speed: number,
     reducedMotion: boolean,
     lift = 0,
+    ballPosition?: Vector3,
   ): void {
     if (!this.active) return;
     const spec = this.spec;
-    this.solve(track, s, lift);
+    this.solve(track, s, lift, ballPosition);
     const kPosition = 1 - Math.exp(-dt / spec.positionTau);
     const kRotation = 1 - Math.exp(-dt / spec.rotationTau);
     Vector3.LerpToRef(this.camera.position, this.targetPosition, kPosition, this.camera.position);

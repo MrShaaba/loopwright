@@ -7,7 +7,10 @@ import {
   PHYSICS_DEFAULTS,
   resetRide,
   sampleTrack,
+  STEER,
   stepRide,
+  stepSteer,
+  wrapTheta,
 } from './BallPhysics';
 
 function physics(sections: Parameters<typeof compileTrack>[0]) {
@@ -92,6 +95,8 @@ describe('stepRide', () => {
     expect(state).toEqual({
       phase: 'running',
       s: 0,
+      theta: 0,
+      omega: 0,
       v: PHYSICS_DEFAULTS.startSpeed,
       time: 0,
       laps: 0,
@@ -160,5 +165,28 @@ describe('feltVerticalG', () => {
     expect(feltVerticalG(track, top, 16)).toBeGreaterThan(0.5);
     expect(feltVerticalG(track, top, 6)).toBeLessThan(0);
     expect(feltVerticalG(track, 20 + 1, 25)).toBeGreaterThan(3);
+  });
+});
+
+describe('stepSteer', () => {
+  it('eases up to the full rate while held and keeps a little momentum after release', () => {
+    const state = createRideState();
+    for (let i = 0; i < 60; i++) stepSteer(state, 1, 1 / 60);
+    expect(state.omega).toBeCloseTo(STEER.maxRate, 1);
+    expect(state.theta).toBeGreaterThan(1.5);
+    const released = state.theta;
+    for (let i = 0; i < 6; i++) stepSteer(state, 0, 1 / 60);
+    expect(state.theta).toBeGreaterThan(released + 0.05);
+    for (let i = 0; i < 120; i++) stepSteer(state, 0, 1 / 60);
+    expect(state.omega).toBe(0);
+  });
+
+  it('steers left with negative input and wraps around the tube', () => {
+    const state = createRideState();
+    for (let i = 0; i < 240; i++) stepSteer(state, -1, 1 / 60);
+    expect(state.theta).toBeGreaterThan(-Math.PI);
+    expect(state.theta).toBeLessThanOrEqual(Math.PI);
+    expect(wrapTheta(Math.PI * 2.5)).toBeCloseTo(Math.PI / 2, 9);
+    expect(wrapTheta(-Math.PI)).toBeCloseTo(Math.PI, 9);
   });
 });

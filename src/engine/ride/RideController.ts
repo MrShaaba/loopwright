@@ -18,6 +18,7 @@ import {
   resetRide,
   sampleTrackToRef,
   stepRide,
+  stepSteer,
   type PhysicsTrack,
   type RidePhase,
   type RideState,
@@ -82,6 +83,7 @@ export class RideController {
   private readonly sample = createSample();
   private boostHeld = false;
   private boost = 1;
+  private steerInput = 0;
   private active = false;
   private statusTimer = 0;
   private lastTravelled = 0;
@@ -144,7 +146,7 @@ export class RideController {
     this.lastTravelled = 0;
     this.lapsSeen = 0;
     this.placeBall();
-    this.camera.activate(this.track, this.state.s);
+    this.camera.activate(this.track, this.state.s, this.ball.position);
     this.audio.start();
     this.events.emit('active', true);
     this.emitStatus();
@@ -160,7 +162,7 @@ export class RideController {
     this.gVertical = 1;
     this.feel = 0;
     this.placeBall();
-    this.camera.activate(this.track, this.state.s);
+    this.camera.activate(this.track, this.state.s, this.ball.position);
     this.emitStatus();
   }
 
@@ -174,6 +176,7 @@ export class RideController {
     this.paused = false;
     this.boostHeld = false;
     this.boost = 1;
+    this.steerInput = 0;
     this.gVertical = 1;
     this.feel = 0;
     resetRide(this.state);
@@ -192,6 +195,15 @@ export class RideController {
 
   nudgeMultiplier(direction: 1 | -1): void {
     this.setMultiplier(this.multiplier + direction * MULTIPLIER_STEP);
+  }
+
+  /** Steering input: -1 left, 0 none, 1 right. Held keys and touch buttons both feed this. */
+  setSteer(input: number): void {
+    this.steerInput = Math.max(-1, Math.min(1, input));
+  }
+
+  get steer(): number {
+    return this.steerInput;
   }
 
   setBoost(held: boolean): void {
@@ -231,6 +243,7 @@ export class RideController {
     this.boost += (target - this.boost) * (1 - Math.exp(-dt / BOOST_TAU));
     if (!this.paused) {
       stepRide(this.state, this.track, dt, this.effectiveMultiplier, undefined, this.endless);
+      if (this.state.phase === 'running') stepSteer(this.state, this.steerInput, dt);
       this.audio.update(this.speed);
       if (this.state.laps > this.lapsSeen) {
         this.lapsSeen = this.state.laps;
@@ -240,9 +253,17 @@ export class RideController {
     const rolled = this.state.travelled - this.lastTravelled;
     this.lastTravelled = this.state.travelled;
     sampleTrackToRef(this.track, this.state.s, this.sample);
-    this.ball.place(this.sample, rolled);
+    this.ball.place(this.sample, rolled, this.state.theta);
     this.updateFeel(dt);
-    this.camera.update(dt, this.track, this.state.s, this.speed, this.reducedMotion, this.feel);
+    this.camera.update(
+      dt,
+      this.track,
+      this.state.s,
+      this.speed,
+      this.reducedMotion,
+      this.feel,
+      this.ball.position,
+    );
     this.statusTimer += dt;
     if (this.statusTimer >= STATUS_INTERVAL) {
       this.statusTimer = 0;
@@ -295,7 +316,7 @@ export class RideController {
 
   private placeBall(): void {
     sampleTrackToRef(this.track, this.state.s, this.sample);
-    this.ball.place(this.sample, 0);
+    this.ball.place(this.sample, 0, this.state.theta);
   }
 
   private emitStatus(): void {
