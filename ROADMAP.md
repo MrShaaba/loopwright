@@ -1,22 +1,7 @@
 # Roadmap
 
-Phase 1 (scaffold, night park, cameras, HUD shell) is done. Each later phase ends with lint, tests
-and build green, a commit, and a note on what to look at in the browser.
-
-## Phase 2: track building
-
-- Piece registry with one file per piece: station, straight (three lengths), curve left and
-  right (radii 8, 14, 22 m; 45 and 90 degrees), slope up, slope down, level out, lift hill with
-  chain, drop with depth, vertical loop, corkscrew left and right, helix left and right, brake run
-- Centripetal Catmull-Rom through piece keys, arc-length resampling at 0.25 m
-- Rotation-minimising frames by double reflection; gravity-framed bank for ordinary pieces and
-  transport-framed twist through loops and corkscrews
-- Auto-bank on curves from radius and design speed, with an override parameter
-- Rail tubes, box spine, thin-instanced ties and supports dropped to the terrain
-- Palette with variant chips, ghost preview at the track end, snap on place, remove last
-- Undo and redo through a command stack (`Ctrl`/`Cmd+Z`, `Shift` to redo)
-- Closure readout: distance and heading gap back to the station
-- Tests: piece exit poses, frame orthonormality, arc-length tables, undo stack
+Phases 1 (scaffold, night park, cameras, HUD shell) and 2 (track building) are done. Each later
+phase ends with lint, tests and build green, a commit, and a note on what to look at in the browser.
 
 ## Phase 3: ride mode
 
@@ -72,6 +57,15 @@ and build green, a commit, and a note on what to look at in the browser.
 - Creatures: a tracker drone that follows the train, a sweeper beam across the track
 - Scares: beam sweep, drone dive, crystal shatter
 - Sound: synth pads, radio chatter, beam hum
+
+## Deferred from Phase 2
+
+- Select any piece by clicking it, delete or re-parameterise it in place, insert in the middle
+- Smart close: suggest the curve and straight combination that brings the track back to the station
+- Carry bank through consecutive curves instead of unbanking between them
+- Clothoid (teardrop) loop profile instead of a stretched circle
+- Collision warning when a piece passes through existing track or the station roof
+- Hover highlight on the track and a piece list with per-piece length and height
 
 ## Deferred from Phase 1
 

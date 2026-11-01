@@ -4,7 +4,7 @@ Build a themed roller coaster in 3D, then ride it at night. Loopwright runs enti
 browser: you snap track pieces together in a moonlit park, dress the scene with props and scares,
 and ride the result in first person.
 
-![Haunted Hollow at night: a moonlit valley with fog, boulders and the build HUD](docs/screenshot.png)
+![Haunted Hollow at night: a coaster with a lift hill, loop and corkscrew leaving the station, with the build palette](docs/screenshot.png)
 
 ## Who it is for
 
@@ -45,20 +45,24 @@ npm run format   # Prettier write
 
 ## Controls
 
-| Context  | Keys and mouse                                                                         |
-| -------- | -------------------------------------------------------------------------------------- |
-| Orbit    | drag to orbit, right-drag to pan, scroll to zoom, `1` `2` `3` fly to presets           |
-| Fly      | `F` to toggle, click to capture the mouse, `WASD` move, `Q`/`E` down/up, `Shift` hurry |
-| Anywhere | `P` save a photo, `?` or `H` shortcuts, `Esc` close                                    |
+| Context  | Keys and mouse                                                                                     |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| Build    | pick a piece in the palette, `Enter` or click the scene to snap it on, `Backspace` remove last     |
+| Build    | `Ctrl`/`Cmd+Z` undo, `Shift+Ctrl`/`Cmd+Z` redo, `4` fly to the track end, `Esc` drop the selection |
+| Orbit    | drag to orbit, right-drag to pan, scroll to zoom, `1` `2` `3` fly to presets                       |
+| Fly      | `F` to toggle, click to capture the mouse, `WASD` move, `Q`/`E` down/up, `Shift` hurry             |
+| Anywhere | `P` save a photo, `?` or `H` shortcuts                                                             |
 
-Build and ride shortcuts (rotate, delete, undo, start, camera switch) arrive with those phases.
+Ride shortcuts (start, camera switch) and prop controls (rotate, delete) arrive with those phases.
 
 ## Project layout
 
 ```
-src/engine/   framework-free Babylon code: scene, cameras, input, theme configs, save schema
-src/ui/       Svelte 5 HUD, state and the single bridge module that talks to the engine
-src/parks/    starter parks (from Phase 4)
+src/engine/scene/   terrain, sky, lighting, fog, performance governor
+src/engine/track/   pieces, pose cursor, spline, frames, track model, rail and support meshes
+src/engine/build/   build controller and command stack (undo/redo)
+src/engine/theme/   theme configs (Haunted Hollow)
+src/ui/             Svelte 5 HUD, state and the single bridge module that talks to the engine
 ```
 
 The engine never imports Svelte and the UI never imports Babylon. Track math, physics and the
@@ -66,7 +70,8 @@ save format are pure TypeScript so they run under Vitest without a browser.
 
 ## Status
 
-Phase 1 of 5 is complete: scaffold, night park scene, cameras and the HUD shell. See
+Phases 1 and 2 of 5 are complete: the night park, cameras and HUD, then track building with
+twelve piece types, snapping, ghost preview, undo and redo, supports and circuit closure. See
 [ROADMAP.md](ROADMAP.md) for what comes next and what is deferred.
 
 ## License
