@@ -37,6 +37,33 @@ describe('validateTrack', () => {
     expect(issue?.position?.y).toBeLessThan(1.6);
   });
 
+  it('reports one issue for a dive that drags every later section underground', () => {
+    const result = check([
+      createSection('straight', { length: 40 }),
+      createSection('hill', { height: 20, length: 40, dive: true }),
+      createSection('wave'),
+      createSection('turn'),
+      createSection('loop'),
+    ]);
+    const underground = result.issues.filter((i) => i.kind === 'underground');
+    expect(underground).toHaveLength(1);
+    expect(underground[0]?.sectionIndex).toBe(1);
+    expect(underground[0]?.message).toContain('Section 2 goes');
+    expect(underground[0]?.message).toContain('4 sections after it stay underground');
+  });
+
+  it('reports two dives separately when the track climbs back between them', () => {
+    const result = check([
+      createSection('hill', { height: 10, length: 40, dive: true }),
+      createSection('hill', { height: 30, length: 60 }),
+      createSection('straight', { length: 30 }),
+      createSection('hill', { height: 40, length: 60, dive: true }),
+    ]);
+    const underground = result.issues.filter((i) => i.kind === 'underground');
+    expect(underground.map((i) => i.sectionIndex)).toEqual([0, 3]);
+    expect(underground[0]?.message).toContain('section after it stays underground');
+  });
+
   it('warns about a hill that is too steep', () => {
     const result = check([
       createSection('straight', { length: 40 }),

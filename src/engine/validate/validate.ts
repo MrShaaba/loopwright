@@ -3,7 +3,8 @@ import { coilMaxPitch } from '../track/sections/helix';
 import { hillMaxPitch } from '../track/sections/hill';
 import { numberParam } from '../track/sections/types';
 import { waveMaxPitch } from '../track/sections/wave';
-import type { CompiledTrack, SectionSpec } from '../track/Track';
+import { START_POSE, type CompiledTrack, type SectionSpec } from '../track/Track';
+import type { TrackFrame } from '../track/types';
 import { TUBE_RADIUS } from '../tube/TubeView';
 import { DEG } from '../util/math';
 
@@ -113,30 +114,70 @@ function checkSteep(sections: readonly SectionSpec[], track: CompiledTrack, issu
   });
 }
 
+interface UndergroundRun {
+  index: number;
+  depth: number;
+  position: Vector3;
+  /** Sections after the root that only stay underground because the root took them there. */
+  cascade: number;
+}
+
+/**
+ * One issue per dive: the section that takes the tube under the floor is the root, and the
+ * sections after it that start underground are folded into its message instead of each getting
+ * their own.
+ */
 function checkUnderground(
   sections: readonly SectionSpec[],
   track: CompiledTrack,
   issues: Issue[],
 ): void {
-  const reported = new Set<number>();
+  const clearance = LIMITS.floorClearance;
+  const deepest = new Map<number, TrackFrame>();
   for (const frame of track.frames) {
-    if (frame.position.y >= LIMITS.floorClearance) continue;
-    const index = frame.sectionIndex;
-    if (reported.has(index)) continue;
-    reported.add(index);
-    const depth = LIMITS.floorClearance - frame.position.y;
-    const isReturn = index >= sections.length;
+    if (frame.position.y >= clearance) continue;
+    const current = deepest.get(frame.sectionIndex);
+    if (!current || frame.position.y < current.position.y) deepest.set(frame.sectionIndex, frame);
+  }
+  const flush = (run: UndergroundRun): void => {
+    const isReturn = run.index >= sections.length;
     const advice = isReturn
       ? 'Raise the end of the last section so the return has room to level out.'
       : 'Reduce the dive or raise the sections before it.';
+    const tail =
+      run.cascade === 0
+        ? ''
+        : run.cascade === 1
+          ? ', and the section after it stays underground'
+          : `, and the ${run.cascade} sections after it stay underground`;
     issues.push({
       kind: 'underground',
       severity: 'error',
-      sectionIndex: index,
-      message: `${capitalise(sectionName(sections, index))} goes ${depth.toFixed(1)} m underground. ${advice}`,
-      position: frame.position.clone(),
+      sectionIndex: run.index,
+      message: `${capitalise(sectionName(sections, run.index))} goes ${run.depth.toFixed(1)} m underground${tail}. ${advice}`,
+      position: run.position,
     });
+  };
+  let run: UndergroundRun | null = null;
+  const count = sections.length + 1;
+  for (let index = 0; index < count; index++) {
+    const frame = deepest.get(index);
+    const entryY = index === 0 ? START_POSE.position.y : (track.exits[index - 1]?.position.y ?? 0);
+    if (!frame) {
+      if (run) flush(run);
+      run = null;
+      continue;
+    }
+    const depth = clearance - frame.position.y;
+    if (run && entryY < clearance) {
+      run.cascade++;
+      run.depth = Math.max(run.depth, depth);
+      continue;
+    }
+    if (run) flush(run);
+    run = { index, depth, position: frame.position.clone(), cascade: 0 };
   }
+  if (run) flush(run);
 }
 
 /** Spatial hash over the frames; any two frames that are far apart along the track but close in space cross. */
