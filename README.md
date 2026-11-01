@@ -60,10 +60,16 @@ npm run format   # Prettier write
 | -------- | ----------------------------------------------------------------------------------------------- |
 | Anywhere | `Enter` or `Space` ride, and the same key or `Esc` returns to the editor                        |
 | Ride     | `↑` `↓` nudge the speed multiplier, hold `Shift` to boost, `P` pause, `C` Inside or Follow view |
+| Ride     | after the lap ends, `Space` goes again; Endless in the HUD keeps the ride going                 |
 | Editor   | click the tube to select a section, `Delete` remove it, `Ctrl`/`Cmd+D` duplicate, `1` frame all |
 | Editor   | `Ctrl`/`Cmd+Z` undo, `Shift+Ctrl`/`Cmd+Z` redo, a whole slider drag is one step                 |
 | Orbit    | drag to orbit, right-drag to pan, scroll to zoom, `F` toggles the free-fly camera               |
 | Anywhere | `T` next theme, `M` mute, `O` save a photo, `?` or `H` shortcuts                                |
+
+The ride has two views. Inside sits just behind the ball; Follow sits further back so the ball
+runs ahead of you. The camera lifts over crests and in airtime and squeezes in dips and loops,
+driven by the g the ball feels at its effective speed, so the multiplier scales it. Each lap is
+timed and the best lap is kept per track.
 
 The Share button in the top bar renames the track, copies a link that rebuilds it with no server,
 exports and imports JSON, and takes a photo. The track name opens the five starter tracks.
@@ -71,7 +77,7 @@ exports and imports JSON, and takes a photo. The track name opens the five start
 ## Accessibility
 
 With `prefers-reduced-motion` set, the field of view stays fixed, the streaks calm down, the
-camera smoothing is unchanged and the HUD drops its transitions.
+airtime and squeeze lift drops to a third, and the HUD drops its transitions.
 
 ## Project layout
 

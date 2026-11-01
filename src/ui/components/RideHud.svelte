@@ -31,6 +31,8 @@
   <p class="gforce" class:airtime={ride.gVertical < 0.4} class:heavy={ride.gVertical > 2.5}>
     {#if ride.gVertical < 0.4}
       Airtime
+    {:else if ride.gVertical > 9.95}
+      9.9+ g
     {:else}
       {ride.gVertical.toFixed(1)} g
     {/if}

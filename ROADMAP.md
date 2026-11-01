@@ -6,9 +6,9 @@ slider editor, validation, five starter tracks, four looks and sharing shipped o
 
 ## The ride
 
-- A chase camera as a second view, orbiting the ball, with `C` to switch (the key is on photos now)
+- A free orbit view around the ball as a third camera
 - Camera shake and a stronger lean into banked turns at high speed, off under reduced motion
-- A lap time board and a best-lap marker on the progress bar
+- A best-lap marker on the progress bar and a lap time board per track
 - Ball trail: a short additive ribbon behind the ball at speed
 - Doppler and a whoosh when passing light rings; a bass thump on landing after a jump
 - Gamepad: triggers for the multiplier, a button for boost
@@ -19,8 +19,6 @@ slider editor, validation, five starter tracks, four looks and sharing shipped o
 - Type a value into a slider's readout
 - Drag the ends of a section on the tube itself to change its length
 - Section presets (a gentle hill, a tight hairpin) and a random track generator
-- Collapse cascades in the checks list: when one dive sends every later section underground,
-  report the dive once with "and the eight sections after it"
 - A clothoid loop profile so the entry pull-out is softer
 - Jump gaps could match the parabola to the ball's actual speed
 - Return section settings: a slider for its turn radius

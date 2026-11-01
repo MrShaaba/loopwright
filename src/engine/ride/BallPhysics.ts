@@ -22,9 +22,9 @@ export const PHYSICS_DEFAULTS: PhysicsParams = {
   gravity: 9.81,
   rollingResistance: 0.004,
   drag: 0.00045,
-  minSpeed: 8,
+  minSpeed: 10,
   maxSpeed: 42,
-  startSpeed: 14,
+  startSpeed: 18,
 };
 
 export const MULTIPLIER_MIN = 0.25;
