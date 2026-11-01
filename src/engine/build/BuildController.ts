@@ -1,4 +1,5 @@
 import { Emitter } from '../events';
+import { validateTrack, type ValidationResult } from '../ride/validate';
 import type { PlacedPiece } from '../save/schema';
 import { defaultParams, getPiece } from '../track/pieces';
 import { TrackModel, type Candidate } from '../track/TrackModel';
@@ -38,6 +39,7 @@ export interface BuildEvents {
   selection: SelectionState;
   history: HistoryState;
   ghost: GhostState | null;
+  validation: ValidationResult;
 }
 
 /** Build-mode logic: piece selection, ghost preview, placement and undo history. */
@@ -48,8 +50,11 @@ export class BuildController {
   params: PieceParams = {};
   private candidate: Candidate | null = null;
   private ghost: GhostState | null = null;
+  validation: ValidationResult;
 
-  constructor(readonly model: TrackModel) {}
+  constructor(readonly model: TrackModel) {
+    this.validation = validateTrack(model.frames, model.closure);
+  }
 
   get selected(): PieceDef | null {
     return this.selectedId ? getPiece(this.selectedId) : null;
@@ -84,6 +89,7 @@ export class BuildController {
   /** Emits every state so a fresh subscriber can sync. */
   publishAll(): void {
     this.events.emit('track', this.summary());
+    this.events.emit('validation', this.validation);
     this.events.emit('selection', this.selection());
     this.events.emit('history', this.history());
     this.events.emit('ghost', this.ghost);
@@ -123,7 +129,9 @@ export class BuildController {
   }
 
   private afterModelChange(): void {
+    this.validation = validateTrack(this.model.frames, this.model.closure);
     this.events.emit('track', this.summary());
+    this.events.emit('validation', this.validation);
     this.events.emit('history', this.history());
     this.refreshCandidate();
   }

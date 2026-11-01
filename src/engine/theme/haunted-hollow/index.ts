@@ -72,6 +72,12 @@ export const hauntedHollow: ThemeConfig = {
     support: new Color3(0.14, 0.12, 0.1),
     railGlow: 0.6,
   },
+  train: {
+    body: new Color3(0.17, 0.08, 0.2),
+    trim: new Color3(0.95, 0.52, 0.14),
+    seat: new Color3(0.1, 0.09, 0.11),
+    lamp: new Color3(1, 0.82, 0.5),
+  },
   props: [],
   scares: [],
   audio: {

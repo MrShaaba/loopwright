@@ -3,8 +3,10 @@ import { PointerEventTypes } from '@babylonjs/core/Events/pointerEvents';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateScreenshotAsync } from '@babylonjs/core/Misc/screenshotTools';
 import { Scene } from '@babylonjs/core/scene';
+import { AudioEngine } from './audio/AudioEngine';
 import { BuildController } from './build/BuildController';
 import { CameraRig, type CameraMode, type CameraPreset } from './camera/CameraRig';
+import { RideCameras } from './camera/RideCameras';
 import { Emitter } from './events';
 import { KeyRegistry, type KeyBinding } from './input/Keys';
 import { Atmosphere } from './scene/Atmosphere';
@@ -12,6 +14,9 @@ import { Lighting } from './scene/Lighting';
 import { PerformanceGovernor, type PerformanceSample } from './scene/Performance';
 import { Sky } from './scene/Sky';
 import { Terrain } from './scene/Terrain';
+import { MarkerView } from './ride/MarkerView';
+import { RideController } from './ride/RideController';
+import { Train } from './ride/Train';
 import type { ThemeConfig } from './theme/ThemeConfig';
 import { GhostView } from './track/mesh/GhostView';
 import { TrackView } from './track/mesh/TrackView';
@@ -46,6 +51,8 @@ interface GameParts {
   build: BuildController;
   trackView: TrackView;
   ghostView: GhostView;
+  ride: RideController;
+  markers: MarkerView;
 }
 
 function nextFrame(): Promise<void> {
@@ -106,6 +113,8 @@ export class Game {
   readonly build: BuildController;
   readonly trackView: TrackView;
   readonly ghostView: GhostView;
+  readonly ride: RideController;
+  readonly markers: MarkerView;
   readonly performance: PerformanceGovernor;
   mode: GameMode = 'build';
   private readonly canvas: HTMLCanvasElement;
@@ -126,13 +135,20 @@ export class Game {
     this.build = parts.build;
     this.trackView = parts.trackView;
     this.ghostView = parts.ghostView;
+    this.ride = parts.ride;
+    this.markers = parts.markers;
     this.performance = new PerformanceGovernor(this.engine, (sample) =>
       this.events.emit('performance', sample),
     );
     this.cameras.onModeChange = (mode) => this.events.emit('cameraMode', mode);
     this.build.events.on('track', () => {
       this.trackView.rebuild(this.track.frames, this.track.closure.closed, this.track.exitPose);
+      this.ride.syncTrack(this.track);
     });
+    this.build.events.on('validation', (result) => {
+      this.markers.show(result.markers);
+    });
+    this.markers.show(this.build.validation.markers);
     this.build.events.on('ghost', (ghost) => {
       if (ghost) this.ghostView.show(ghost.frames, ghost.valid);
       else this.ghostView.hide();
@@ -179,11 +195,13 @@ export class Game {
       initialPreset: 'overview',
     });
 
+    const rideCameras = new RideCameras(scene, (x, z) => terrain.heightAt(x, z));
+
     await report('Rolling in the fog', 0.75);
     const atmosphere = new Atmosphere(scene, {
       fog: theme.fog,
       lighting: theme.lighting,
-      cameras: cameras.cameras,
+      cameras: [...cameras.cameras, ...rideCameras.cameras],
       halfSize: theme.terrain.size / 2,
       seed: theme.terrain.seed,
       heightAt: (x, z) => terrain.heightAt(x, z),
@@ -203,6 +221,12 @@ export class Game {
     trackView.rebuild(track.frames, track.closure.closed, track.exitPose);
     const ghostView = new GhostView(scene);
 
+    await report('Rolling out the train', 0.86);
+    const train = new Train(scene, theme.train, lighting);
+    const audio = new AudioEngine(theme.audio);
+    const ride = new RideController(track, train, rideCameras, audio);
+    const markers = new MarkerView(scene, (x, z) => terrain.heightAt(x, z));
+
     await report('Compiling shaders', 0.9);
     await scene.whenReadyAsync();
     await report('Opening the gates', 1);
@@ -221,6 +245,8 @@ export class Game {
       build,
       trackView,
       ghostView,
+      ride,
+      markers,
     });
   }
 
@@ -247,7 +273,9 @@ export class Game {
     this.engine.runRenderLoop(() => {
       const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.1);
       this.sky.update(dt);
-      this.cameras.update(dt);
+      if (this.mode === 'ride') this.ride.update(dt);
+      else this.cameras.update(dt);
+      this.markers.update(dt);
       this.performance.update(dt);
       this.scene.render();
     });
@@ -289,12 +317,31 @@ export class Game {
   requestMode(mode: GameMode): void {
     if (mode === this.mode) return;
     if (mode === 'ride') {
-      this.toast('Ride mode arrives in Phase 3');
-      return;
+      const problem = this.build.validation.markers.find((m) => m.severity === 'error');
+      if (problem) {
+        this.toast(problem.reason);
+        this.cameras.flyToPoint(problem.position, 45);
+        return;
+      }
+      this.build.select(null);
+      this.cameras.suspend();
+      this.markers.setVisible(false);
+      this.ride.enter();
+    } else {
+      this.ride.exit();
+      this.markers.setVisible(true);
+      this.cameras.resume();
     }
     this.mode = mode;
     this.keys.mode = mode;
     this.events.emit('mode', mode);
+  }
+
+  /** Flies the build camera to a validation marker. */
+  showMarker(index: number): void {
+    const marker = this.build.validation.markers[index];
+    if (!marker) return;
+    this.cameras.flyToPoint(marker.position, 40);
   }
 
   toast(text: string): void {
@@ -364,6 +411,24 @@ export class Game {
       this.keys.bind({ scope: 'build', combo, label: 'Redo', handler: () => this.build.redo() });
     }
     this.keys.bind({
+      scope: 'ride',
+      combo: 'Space',
+      label: 'Dispatch the train',
+      handler: () => this.ride.start(),
+    });
+    this.keys.bind({
+      scope: 'ride',
+      combo: 'KeyC',
+      label: 'Switch between seat and chase camera',
+      handler: () => this.ride.toggleCamera(),
+    });
+    this.keys.bind({
+      scope: 'global',
+      combo: 'KeyM',
+      label: 'Mute or unmute sound',
+      handler: () => this.toast(this.ride.toggleMute() ? 'Sound muted' : 'Sound on'),
+    });
+    this.keys.bind({
       scope: 'global',
       combo: 'KeyP',
       label: 'Save a photo of the view',
@@ -381,6 +446,11 @@ export class Game {
     this.disposed = true;
     this.engine.stopRenderLoop();
     for (const dispose of this.disposers) dispose();
+    this.ride.dispose();
+    this.ride.audio.dispose();
+    this.ride.cameras.dispose();
+    this.ride.train.dispose();
+    this.markers.dispose();
     this.ghostView.dispose();
     this.trackView.dispose();
     this.build.dispose();

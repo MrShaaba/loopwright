@@ -35,9 +35,9 @@
       class:active={ui.mode === 'ride'}
       onclick={() => controller.requestMode('ride')}
       aria-pressed={ui.mode === 'ride'}
-      title="Ride mode arrives in Phase 3"
+      title="Ride the coaster"
     >
-      Ride <span class="soon">soon</span>
+      Ride
     </button>
   </nav>
 
@@ -163,15 +163,6 @@
   .tab.active {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text);
-  }
-
-  .soon {
-    margin-left: 4px;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    opacity: 0.7;
   }
 
   .meters {

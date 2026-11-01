@@ -5,6 +5,7 @@
   import Dock from './components/Dock.svelte';
   import HelpOverlay from './components/HelpOverlay.svelte';
   import LoadingScreen from './components/LoadingScreen.svelte';
+  import RideHud from './components/RideHud.svelte';
   import StatusBar from './components/StatusBar.svelte';
   import Toast from './components/Toast.svelte';
   import TopBar from './components/TopBar.svelte';
@@ -44,11 +45,15 @@
 {#if controller}
   <div class="hud">
     <TopBar {controller} />
-    {#if ui.dockOpen}
-      <Dock {controller} />
+    {#if ui.mode === 'ride'}
+      <RideHud {controller} />
+    {:else}
+      {#if ui.dockOpen}
+        <Dock {controller} />
+      {/if}
+      <CameraPanel {controller} />
+      <StatusBar />
     {/if}
-    <CameraPanel {controller} />
-    <StatusBar />
     {#if ui.helpOpen}
       <HelpOverlay {controller} />
     {/if}

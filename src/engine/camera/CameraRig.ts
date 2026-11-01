@@ -155,6 +155,20 @@ export class CameraRig {
     this.setMode(this.mode === 'orbit' ? 'fly' : 'orbit');
   }
 
+  /** Hands control back to the build camera after another camera was active. */
+  resume(): void {
+    this.scene.activeCamera = this.active;
+    if (this.mode === 'fly') this.fly.attachControl();
+    else this.orbit.attachControl();
+  }
+
+  /** Releases input while another camera drives the scene. */
+  suspend(): void {
+    this.tweens.cancelAll();
+    this.orbit.detachControl();
+    this.fly.detachControl();
+  }
+
   /** Glides the orbit camera to a preset. Returns false when the preset is unknown. */
   flyTo(id: string): boolean {
     const preset = this.options.presets.find((p) => p.id === id);

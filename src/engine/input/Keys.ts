@@ -113,13 +113,23 @@ export class KeyRegistry {
 
   /** Listens on the window; ignores keys typed into form fields. */
   attach(target: Window): () => void {
+    const handled = new Set<string>();
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.repeat || isTextTarget(event.target)) return;
-      if (this.dispatch(event)) event.preventDefault();
+      if (this.dispatch(event)) {
+        event.preventDefault();
+        handled.add(event.code);
+      }
+    };
+    // Space and Enter activate a focused button on keyup; swallow that for keys we handled.
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (handled.delete(event.code)) event.preventDefault();
     };
     target.addEventListener('keydown', onKeyDown);
+    target.addEventListener('keyup', onKeyUp);
     return () => {
       target.removeEventListener('keydown', onKeyDown);
+      target.removeEventListener('keyup', onKeyUp);
     };
   }
 }

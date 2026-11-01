@@ -6,6 +6,7 @@ import { listPieces } from '../engine/track/pieces';
 import type { ParamValue } from '../engine/track/types';
 import { build, type PaletteEntry } from './state/build.svelte';
 import { ui } from './state/game.svelte';
+import { ride } from './state/ride.svelte';
 
 /** Everything a HUD component may ask the engine to do. */
 export interface Controller {
@@ -26,6 +27,10 @@ export interface Controller {
   undo: () => void;
   redo: () => void;
   goToTrackEnd: () => void;
+  showMarker: (index: number) => void;
+  startRide: () => void;
+  toggleRideCamera: () => void;
+  toggleMute: () => void;
   dispose: () => void;
 }
 
@@ -98,6 +103,28 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       build.canUndo = history.canUndo;
       build.canRedo = history.canRedo;
     }),
+    game.build.events.on('validation', (result) => {
+      build.validation = {
+        ok: result.ok,
+        markers: result.markers.map((m) => ({
+          kind: m.kind,
+          severity: m.severity,
+          reason: m.reason,
+        })),
+        stats: result.stats,
+      };
+    }),
+    game.ride.events.on('status', (status) => {
+      ride.phase = status.phase;
+      ride.speed = status.speed * 3.6;
+      ride.gVertical = status.gVertical;
+      ride.gLateral = status.gLateral;
+      ride.time = status.time;
+      ride.lap = status.lap;
+      ride.camera = status.camera;
+      ride.onChain = status.onChain;
+      ride.muted = status.muted;
+    }),
   ];
   build.palette = paletteEntries();
   game.build.publishAll();
@@ -123,6 +150,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     label: 'Close the shortcuts panel, or drop the piece selection',
     handler: () => {
       if (ui.helpOpen) ui.helpOpen = false;
+      else if (game.mode === 'ride') game.requestMode('build');
       else game.build.select(null);
     },
   });
@@ -158,6 +186,14 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     undo: () => game.build.undo(),
     redo: () => game.build.redo(),
     goToTrackEnd: () => game.flyToTrackEnd(),
+    showMarker: (index) => game.showMarker(index),
+    startRide: () => game.ride.start(),
+    toggleRideCamera: () => {
+      game.ride.toggleCamera();
+    },
+    toggleMute: () => {
+      game.ride.toggleMute();
+    },
     dispose: () => {
       for (const off of unsubscribe) off();
       game.dispose();

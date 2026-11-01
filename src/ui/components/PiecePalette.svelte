@@ -12,6 +12,8 @@
   ];
 
   const selected = $derived(build.palette.find((p) => p.id === build.selectedId) ?? null);
+  const checks = $derived(build.validation);
+  const shownMarkers = $derived(checks.markers.slice(0, 5));
   const status = $derived.by(() => {
     const t = build.track;
     if (t.closed) return 'Circuit closed';
@@ -28,6 +30,33 @@
       <span><strong>{build.track.exitHeight.toFixed(1)}</strong> m high</span>
     </div>
     <p class="status">{status}</p>
+  </section>
+
+  <section class="checks" class:ready={checks.ok}>
+    {#if checks.ok}
+      <p class="check-title ok">Ready to ride</p>
+      <p class="check-note">
+        {Math.round(checks.stats.rideTime)} s lap · top speed {Math.round(
+          checks.stats.maxSpeed * 3.6,
+        )} km/h ·
+        {checks.stats.maxVerticalG.toFixed(1)} g max
+      </p>
+      <button class="button primary ride" onclick={() => controller.requestMode('ride')}
+        >Ride it</button
+      >
+    {:else}
+      <p class="check-title">Checks</p>
+    {/if}
+    {#each shownMarkers as marker, index (index)}
+      <div class="check" class:warning={marker.severity === 'warning'}>
+        <span class="dot" aria-hidden="true"></span>
+        <p class="check-reason">{marker.reason}</p>
+        <button class="button show" onclick={() => controller.showMarker(index)}>Show</button>
+      </div>
+    {/each}
+    {#if checks.markers.length > shownMarkers.length}
+      <p class="check-note">And {checks.markers.length - shownMarkers.length} more.</p>
+    {/if}
   </section>
 
   <section class="actions">
@@ -247,6 +276,77 @@
   .hint {
     margin: 0;
     color: var(--muted);
+    font-size: 12px;
+  }
+
+  .checks {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  .checks.ready {
+    border-color: rgba(122, 216, 142, 0.45);
+  }
+
+  .check-title {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .check-title.ok {
+    color: var(--ok);
+  }
+
+  .check-note {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .ride {
+    justify-content: center;
+    margin-top: 2px;
+  }
+
+  .check {
+    display: grid;
+    grid-template-columns: 8px 1fr auto;
+    gap: 8px;
+    align-items: start;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    margin-top: 5px;
+    border-radius: 50%;
+    background: var(--danger);
+    box-shadow: 0 0 8px var(--danger);
+  }
+
+  .check.warning .dot {
+    background: var(--warn);
+    box-shadow: 0 0 8px var(--warn);
+  }
+
+  .check-reason {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .show {
+    min-height: 26px;
+    padding: 0 8px;
     font-size: 12px;
   }
 

@@ -70,6 +70,13 @@ export interface TrackStyle {
   railGlow: number;
 }
 
+export interface TrainStyle {
+  body: Color3;
+  trim: Color3;
+  seat: Color3;
+  lamp: Color3;
+}
+
 export interface PropDef {
   id: string;
   label: string;
@@ -106,6 +113,7 @@ export interface ThemeConfig {
   lighting: LightingConfig;
   terrain: TerrainConfig;
   track: TrackStyle;
+  train: TrainStyle;
   props: PropDef[];
   scares: ScareDef[];
   audio: AudioConfig;
