@@ -153,7 +153,7 @@ export class RideCamera {
 
   /**
    * Follows the ball. `lift` is an extra vertical offset in metres along the frame's up, for
-   * airtime and squeeze; `speed` is the effective speed in m/s.
+   * airtime and squeeze; `speed` is the effective speed in m/s; `kick` is a boost pad's charge.
    */
   update(
     dt: number,
@@ -163,6 +163,7 @@ export class RideCamera {
     reducedMotion: boolean,
     lift = 0,
     ballPosition?: Vector3,
+    kick = 0,
   ): void {
     if (!this.active) return;
     const spec = this.spec;
@@ -173,7 +174,10 @@ export class RideCamera {
     Quaternion.SlerpToRef(this.rotation, this.targetRotation, kRotation, this.rotation);
     this.rotation.normalize();
     this.camera.rotationQuaternion?.copyFrom(this.rotation);
-    const widen = reducedMotion ? 0 : spec.widen * clamp((speed - 8) / 32, 0, 1);
+    // Field of view opens with speed, with an extra kick while a boost pad's burst runs.
+    const widen = reducedMotion
+      ? 0
+      : spec.widen * clamp((speed - 8) / 32, 0, 1) + 0.14 * clamp(kick, 0, 1);
     this.camera.fov += (spec.fov + widen - this.camera.fov) * (1 - Math.exp(-dt / 0.25));
   }
 

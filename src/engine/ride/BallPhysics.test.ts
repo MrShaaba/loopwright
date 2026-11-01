@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { compileTrack, createSection } from '../track/Track';
 import {
+  BOOST_PAD,
+  boostPadFactor,
   createPhysicsTrack,
   createRideState,
   feltVerticalG,
@@ -188,5 +190,15 @@ describe('stepSteer', () => {
     expect(state.theta).toBeLessThanOrEqual(Math.PI);
     expect(wrapTheta(Math.PI * 2.5)).toBeCloseTo(Math.PI / 2, 9);
     expect(wrapTheta(-Math.PI)).toBeCloseTo(Math.PI, 9);
+  });
+});
+
+describe('boostPadFactor', () => {
+  it('adds the pad strength at full charge and nothing when spent', () => {
+    expect(boostPadFactor(1)).toBeCloseTo(1 + BOOST_PAD.strength, 9);
+    expect(boostPadFactor(0.5)).toBeCloseTo(1 + BOOST_PAD.strength / 2, 9);
+    expect(boostPadFactor(0)).toBe(1);
+    expect(boostPadFactor(-1)).toBe(1);
+    expect(boostPadFactor(3)).toBeCloseTo(1 + BOOST_PAD.strength, 9);
   });
 });

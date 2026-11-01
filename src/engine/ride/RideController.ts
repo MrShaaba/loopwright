@@ -8,6 +8,9 @@ import { clamp } from '../util/math';
 import type { Ball } from './Ball';
 import {
   BOOST_FACTOR,
+  BOOST_PAD,
+  boostPadFactor,
+  HAZARD_SPEED_KEEP,
   createPhysicsTrack,
   createRideState,
   createSample,
@@ -47,6 +50,8 @@ export interface RideStatus {
   lastLap: number;
   /** Best lap for this track in seconds, or null before one is recorded. */
   bestLap: number | null;
+  /** 0 to 1 while a boost pad's burst is running. */
+  padBoost: number;
 }
 
 export interface LapEvent {
@@ -84,6 +89,8 @@ export class RideController {
   private boostHeld = false;
   private boost = 1;
   private steerInput = 0;
+  /** Charge left from the last boost pad, 1 right after rolling over it. */
+  private padCharge = 0;
   private active = false;
   private statusTimer = 0;
   private lastTravelled = 0;
@@ -117,7 +124,27 @@ export class RideController {
   }
 
   get effectiveMultiplier(): number {
-    return this.multiplier * this.boost;
+    return this.multiplier * this.boost * boostPadFactor(this.padCharge);
+  }
+
+  /** 0 to 1: how much of a boost pad's burst is still running. */
+  get boostCharge(): number {
+    return this.padCharge;
+  }
+
+  /** A boost pad: a burst of extra speed that fades over a second or so. */
+  applyBoost(): void {
+    this.padCharge = 1;
+    this.emitStatus();
+  }
+
+  /** A hazard: the base speed drops sharply; physics rebuilds it. Returns the speed before the hit. */
+  applyHazard(): number {
+    const before = this.state.v;
+    this.state.v = Math.max(0, this.state.v * HAZARD_SPEED_KEEP);
+    this.padCharge = 0;
+    this.emitStatus();
+    return before;
   }
 
   /** Effective speed in m/s. */
@@ -159,6 +186,7 @@ export class RideController {
     resetRide(this.state);
     this.lastTravelled = 0;
     this.lapsSeen = 0;
+    this.padCharge = 0;
     this.gVertical = 1;
     this.feel = 0;
     this.placeBall();
@@ -176,6 +204,7 @@ export class RideController {
     this.paused = false;
     this.boostHeld = false;
     this.boost = 1;
+    this.padCharge = 0;
     this.steerInput = 0;
     this.gVertical = 1;
     this.feel = 0;
@@ -241,6 +270,10 @@ export class RideController {
     if (!this.active) return;
     const target = this.boostHeld ? BOOST_FACTOR : 1;
     this.boost += (target - this.boost) * (1 - Math.exp(-dt / BOOST_TAU));
+    if (!this.paused && this.padCharge > 0) {
+      this.padCharge *= Math.exp(-dt / BOOST_PAD.tau);
+      if (this.padCharge < 0.02) this.padCharge = 0;
+    }
     if (!this.paused) {
       stepRide(this.state, this.track, dt, this.effectiveMultiplier, undefined, this.endless);
       if (this.state.phase === 'running') stepSteer(this.state, this.steerInput, dt);
@@ -263,6 +296,7 @@ export class RideController {
       this.reducedMotion,
       this.feel,
       this.ball.position,
+      this.padCharge,
     );
     this.statusTimer += dt;
     if (this.statusTimer >= STATUS_INTERVAL) {
@@ -311,6 +345,7 @@ export class RideController {
       lapTime: this.state.time - this.state.lapStart,
       lastLap: this.state.lastLap,
       bestLap: this.bestLap,
+      padBoost: this.padCharge,
     };
   }
 

@@ -151,6 +151,81 @@ export class AudioEngine {
     }
   }
 
+  /** A gem: a quick rising run of bright notes with a shimmer on top. */
+  sparkle(): void {
+    const context = this.context;
+    const fx = this.fx;
+    if (!context || !fx) return;
+    const t = context.currentTime;
+    const notes = [880, 1174.7, 1480, 1760, 2349.3];
+    notes.forEach((frequency, index) => {
+      const osc = context.createOscillator();
+      osc.type = index === notes.length - 1 ? 'sine' : 'triangle';
+      osc.frequency.value = frequency;
+      const env = context.createGain();
+      const start = t + index * 0.055;
+      env.gain.setValueAtTime(0, start);
+      env.gain.linearRampToValueAtTime(0.16, start + 0.01);
+      env.gain.exponentialRampToValueAtTime(
+        0.001,
+        start + (index === notes.length - 1 ? 0.6 : 0.2),
+      );
+      osc.connect(env).connect(fx);
+      osc.start(start);
+      osc.stop(start + 0.65);
+    });
+  }
+
+  /** A boost pad: a band-passed noise sweep rising through the burst. */
+  whoosh(): void {
+    const context = this.context;
+    const fx = this.fx;
+    if (!context || !fx) return;
+    const t = context.currentTime;
+    const source = loopSource(context, noiseBuffer(context, 1, false));
+    const filter = context.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.Q.value = 1.2;
+    filter.frequency.setValueAtTime(300, t);
+    filter.frequency.exponentialRampToValueAtTime(2400, t + 0.35);
+    filter.frequency.exponentialRampToValueAtTime(600, t + 0.9);
+    const env = context.createGain();
+    env.gain.setValueAtTime(0, t);
+    env.gain.linearRampToValueAtTime(0.5, t + 0.08);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.95);
+    source.connect(filter).connect(env).connect(fx);
+    source.start(t);
+    source.stop(t + 1);
+  }
+
+  /** A hazard: a low thud with a short burst of noise. */
+  thud(): void {
+    const context = this.context;
+    const fx = this.fx;
+    if (!context || !fx) return;
+    const t = context.currentTime;
+    const osc = context.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.25);
+    const env = context.createGain();
+    env.gain.setValueAtTime(0.6, t);
+    env.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+    osc.connect(env).connect(fx);
+    osc.start(t);
+    osc.stop(t + 0.4);
+    const burst = loopSource(context, noiseBuffer(context, 0.3, false));
+    const filter = context.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 900;
+    const burstEnv = context.createGain();
+    burstEnv.gain.setValueAtTime(0.35, t);
+    burstEnv.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    burst.connect(filter).connect(burstEnv).connect(fx);
+    burst.start(t);
+    burst.stop(t + 0.2);
+  }
+
   setMuted(muted: boolean): void {
     this.mutedFlag = muted;
     if (this.context && this.master) {

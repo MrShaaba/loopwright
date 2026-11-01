@@ -27,6 +27,16 @@ export const PHYSICS_DEFAULTS: PhysicsParams = {
   startSpeed: 18,
 };
 
+/** A boost pad's burst: extra multiplier at full charge, and how long the charge takes to fade. */
+export const BOOST_PAD = { strength: 0.55, tau: 1.1 } as const;
+/** A hazard keeps this fraction of the base speed. */
+export const HAZARD_SPEED_KEEP = 0.45;
+
+/** Multiplier contributed by a boost pad charge in [0, 1]. */
+export function boostPadFactor(charge: number): number {
+  return 1 + BOOST_PAD.strength * Math.max(0, Math.min(1, charge));
+}
+
 export const MULTIPLIER_MIN = 0.25;
 export const MULTIPLIER_MAX = 3;
 export const MULTIPLIER_STEP = 0.25;

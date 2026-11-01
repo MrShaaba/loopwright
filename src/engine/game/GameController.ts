@@ -6,7 +6,14 @@ import type { CompiledTrack } from '../track/Track';
 import { createPhysicsTrack, wrapTheta, type PhysicsTrack } from '../ride/BallPhysics';
 import type { ItemView } from './ItemView';
 import { generateItems, type Item, type ItemLayout } from './items';
-import { createRunStats, hazardValueFactor, ringPoints, type RunStats } from './scoring';
+import {
+  createRunStats,
+  gemPoints,
+  hazardValueFactor,
+  ringPoints,
+  SCORING,
+  type RunStats,
+} from './scoring';
 
 export type PlayMode = 'game' | 'cruise';
 
@@ -172,10 +179,33 @@ export class GameController {
         }
         break;
       case 'gem':
+        if (hit) {
+          const points = gemPoints();
+          this.stats.gems++;
+          this.stats.score += points;
+          this.view.hide(item.id);
+          this.audio.sparkle();
+          this.events.emit('pop', { kind: 'gem', text: `+${points} gem`, position });
+        }
+        break;
       case 'boost':
+        if (hit) {
+          this.stats.boosts++;
+          this.view.hide(item.id);
+          this.ride.applyBoost();
+          this.audio.whoosh();
+          this.events.emit('pop', { kind: 'boost', text: 'boost', position });
+        }
+        break;
       case 'hazard':
-        // Effects for these arrive with the next step; for now they are only collected.
-        if (hit) this.view.hide(item.id);
+        if (hit) {
+          this.stats.hazards++;
+          this.stats.combo = 0;
+          this.speedAtHit = this.ride.applyHazard();
+          this.valueFactor = SCORING.hazardFloor;
+          this.audio.thud();
+          this.events.emit('pop', { kind: 'hazard', text: 'hit', position });
+        }
         break;
     }
     this.emitStatus();
