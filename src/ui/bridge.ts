@@ -1,6 +1,7 @@
 import type { CameraMode, CameraPreset } from '../engine/camera/CameraRig';
 import { Game, type GameMode } from '../engine/Game';
 import type { KeyBinding } from '../engine/input/Keys';
+import { trackFromHash } from '../engine/save/codec';
 import { loadPrefs, loadSavedTrack, savePrefs } from '../engine/save/storage';
 import { DEFAULT_STARTER_ID, getStarter, STARTERS } from '../engine/starters';
 import { DEFAULT_THEME_ID, getTheme, hasTheme, listThemes } from '../engine/theme';
@@ -18,6 +19,10 @@ export interface Controller {
   readonly starters: readonly { id: string; name: string; tagline: string }[];
   readonly themes: readonly { id: string; name: string; tagline: string }[];
   setTheme: (id: string) => void;
+  rename: (name: string) => void;
+  copyLink: () => Promise<void>;
+  exportJson: () => void;
+  importJson: (file: File) => void;
   setCameraMode: (mode: CameraMode) => void;
   toggleCamera: () => void;
   flyTo: (presetId: string) => void;
@@ -63,7 +68,8 @@ function applyAccent(accent: { accent: string; accentSoft: string; accentText: s
 export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   const starter = getStarter(DEFAULT_STARTER_ID);
   if (!starter) throw new Error('Missing starter track');
-  const doc = loadSavedTrack() ?? starter.doc;
+  const shared = trackFromHash(location.hash);
+  const doc = shared ?? loadSavedTrack() ?? starter.doc;
   const prefs = loadPrefs();
   const theme = getTheme(hasTheme(doc.theme) ? doc.theme : DEFAULT_THEME_ID);
   applyAccent(theme.ui);
@@ -182,7 +188,23 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
 
   game.start();
   ui.phase = 'ready';
+  if (shared) game.toast(`Opened a shared track: ${shared.name}`);
   if (import.meta.env.DEV) window.loopwright = game;
+
+  const download = (name: string, text: string, type: string): void => {
+    const blob = new Blob([text], { type });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const slug = (name: string): string =>
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'track';
 
   return {
     presets: game.presets,
@@ -191,6 +213,28 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     starters: STARTERS.map(({ id, name, tagline }) => ({ id, name, tagline })),
     themes: listThemes().map(({ id, name, tagline }) => ({ id, name, tagline })),
     setTheme: (id) => game.setTheme(id),
+    rename: (name) => game.rename(name),
+    copyLink: async () => {
+      const link = game.shareLink();
+      try {
+        await navigator.clipboard.writeText(link);
+        game.toast('Link copied. Anyone who opens it gets this track.');
+      } catch {
+        ui.toast = { text: link, id: ui.toast.id + 1 };
+      }
+    },
+    exportJson: () => {
+      download(`${slug(game.doc.name)}.loopwright.json`, game.exportJson(), 'application/json');
+      game.toast('Track saved as JSON');
+    },
+    importJson: (file) => {
+      file
+        .text()
+        .then((text) => {
+          game.importJson(text);
+        })
+        .catch(() => game.toast('Could not read that file'));
+    },
     setCameraMode: (mode) => game.setCameraMode(mode),
     toggleCamera: () => game.toggleCamera(),
     flyTo: (id) => game.flyTo(id),

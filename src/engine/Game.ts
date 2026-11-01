@@ -11,7 +11,8 @@ import { Emitter } from './events';
 import { KeyRegistry, type KeyBinding } from './input/Keys';
 import { Ball } from './ride/Ball';
 import { RideController } from './ride/RideController';
-import { createTrackDoc, type TrackDoc } from './save/schema';
+import { encodeTrack, SHARE_PARAM, shareLink } from './save/codec';
+import { createTrackDoc, parseTrackDoc, type TrackDoc } from './save/schema';
 import { saveTrack } from './save/storage';
 import { Atmosphere } from './scene/Atmosphere';
 import { Floor } from './scene/Floor';
@@ -115,6 +116,7 @@ export class Game {
   private readonly canvas: HTMLCanvasElement;
   private readonly disposers: (() => void)[] = [];
   private disposed = false;
+  private hashTimer: ReturnType<typeof setTimeout> | null = null;
 
   private constructor(parts: GameParts) {
     this.canvas = parts.canvas;
@@ -335,9 +337,59 @@ export class Game {
     this.ride.syncTrack(this.compiled);
     this.validation = validateTrack(this.doc.sections, this.compiled);
     this.markers.show(this.validation.issues);
-    saveTrack(this.doc);
+    this.persist();
     this.events.emit('track', this.summary());
     this.events.emit('validation', this.validation);
+  }
+
+  /** Autosaves and keeps the address bar's share hash current, a little after the last change. */
+  private persist(): void {
+    saveTrack(this.doc);
+    if (this.hashTimer) clearTimeout(this.hashTimer);
+    this.hashTimer = setTimeout(() => {
+      this.hashTimer = null;
+      try {
+        history.replaceState(null, '', `#${SHARE_PARAM}=${encodeTrack(this.doc)}`);
+      } catch {
+        // Some embeds forbid history changes; the link button still works.
+      }
+    }, 400);
+  }
+
+  rename(name: string): void {
+    const trimmed = name.trim().slice(0, 48) || 'Untitled';
+    if (trimmed === this.doc.name) return;
+    this.doc = createTrackDoc(trimmed, this.doc.theme, this.doc.sections);
+    this.persist();
+    this.events.emit('track', this.summary());
+  }
+
+  /** A link that rebuilds this track with no server. */
+  shareLink(): string {
+    return shareLink(this.doc, `${location.origin}${location.pathname}`);
+  }
+
+  exportJson(): string {
+    return JSON.stringify(this.doc, null, 2);
+  }
+
+  /** Loads a track from JSON text. Returns false, with a toast, when the text is not a track. */
+  importJson(text: string): boolean {
+    let raw: unknown;
+    try {
+      raw = JSON.parse(text);
+    } catch {
+      this.toast('That file is not JSON');
+      return false;
+    }
+    const doc = parseTrackDoc(raw);
+    if (!doc || doc.sections.length === 0) {
+      this.toast('That file is not a Loopwright track');
+      return false;
+    }
+    this.loadDoc(doc);
+    this.toast(`Loaded ${doc.name}`);
+    return true;
   }
 
   /** Selects the section an issue points at and flies to it; whole-track issues frame everything. */
@@ -396,7 +448,7 @@ export class Game {
     this.tube.restyle(theme.tube, theme.fog);
     this.ball.restyle(theme.ball);
     this.doc = createTrackDoc(this.doc.name, theme.id, this.doc.sections);
-    saveTrack(this.doc);
+    this.persist();
     this.events.emit('theme', theme);
   }
 
@@ -598,6 +650,7 @@ export class Game {
     if (this.disposed) return;
     this.disposed = true;
     this.engine.stopRenderLoop();
+    if (this.hashTimer) clearTimeout(this.hashTimer);
     for (const dispose of this.disposers) dispose();
     this.edit.dispose();
     this.markers.dispose();

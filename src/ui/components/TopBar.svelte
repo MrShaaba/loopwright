@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Controller } from '../bridge';
   import { ui } from '../state/game.svelte';
+  import SharePanel from './SharePanel.svelte';
 
   let { controller }: { controller: Controller } = $props();
 
@@ -8,6 +9,7 @@
   let tracksOpen = $state(false);
   let confirmId: string | null = $state(null);
   let themesOpen = $state(false);
+  let shareOpen = $state(false);
 
   function pickTheme(id: string): void {
     themesOpen = false;
@@ -117,6 +119,19 @@
           · {ui.renderScale}×</span
         >{/if}
     </span>
+    <div class="share-wrap">
+      <button
+        class="button"
+        onclick={() => (shareOpen = !shareOpen)}
+        aria-expanded={shareOpen}
+        aria-haspopup="dialog"
+      >
+        Share
+      </button>
+      {#if shareOpen}
+        <SharePanel {controller} close={() => (shareOpen = false)} />
+      {/if}
+    </div>
     <button
       class="button icon"
       onclick={controller.takePhoto}
@@ -317,6 +332,10 @@
   .theme-menu {
     left: auto;
     right: 0;
+  }
+
+  .share-wrap {
+    position: relative;
   }
 
   .menu-item.current {
