@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+.vite/
+
+# environment and secrets
+.env
+.env.*
+
+# tooling
+coverage/
+*.log
+.svelte-kit/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.gstack/
