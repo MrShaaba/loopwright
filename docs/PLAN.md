@@ -9,6 +9,11 @@ camera smoothing, the spline and frame maths, the key registry, the command stac
 scene classes (sky, lighting, fog, post-processing, performance governor) carry over from Phase 3.
 The snap-piece builder, the station, the four-car train and the terrain are gone.
 
+## Status
+
+All five steps below shipped on 1 November 2026, one commit each. `ROADMAP.md` holds what would
+make it better.
+
 ## Steps
 
 1. **The ride.** A starter track, the tube and ball, the inside camera, speed physics with a live

@@ -1,75 +1,48 @@
 # Roadmap
 
-Phases 1 (scaffold, night park, cameras, HUD shell), 2 (track building) and 3 (ride mode) are
-done. Each later phase ends with lint, tests and build green, a commit, and a note on what to look at
-in the browser.
+Loopwright is ride first: a glowing ball in a glass tube at the speed you choose. The ride, the
+slider editor, validation, five starter tracks, four looks and sharing shipped on 1 November 2026
+(see `docs/PLAN.md`). This file lists what would make it better, as concrete items.
 
-## Phase 4: Haunted Hollow complete
+## The ride
 
-- Procedural props with idle motion: gravestones, crooked trees, jack-o'-lanterns, fences,
-  flickering lanterns, a mansion the track dives through
-- Prop placement on terrain with `R` rotate, scale drag and `Delete`
-- Ghosts that drift alongside the train and burst from trigger points
-- Scare triggers placed on track segments
-- Ambient bed and music bed as synth patches
-- Starter park: a complete coaster through the graveyard and mansion
-- Readability pass so the track never vanishes into the dark (rail glow, rim light)
+- A chase camera as a second view, orbiting the ball, with `C` to switch (the key is on photos now)
+- Camera shake and a stronger lean into banked turns at high speed, off under reduced motion
+- A lap time board and a best-lap marker on the progress bar
+- Ball trail: a short additive ribbon behind the ball at speed
+- Doppler and a whoosh when passing light rings; a bass thump on landing after a jump
+- Gamepad: triggers for the multiplier, a button for boost
 
-## Phase 5: persistence, stubs and polish
+## Shaping the track
 
-- Save and load parks in localStorage, export and import JSON files, versioned with migrations
-- Main menu with park picker and an empty park
-- Primeval Valley and Xeno Reach stubs: sky, lighting, two or three props and a starter coaster each
-- Performance pass against 60 fps: instancing audit, merged static scenery, frozen matrices
-- Tablet HUD check, README screenshot refresh
+- Drag chips in the timeline to reorder, in addition to the arrow buttons
+- Type a value into a slider's readout
+- Drag the ends of a section on the tube itself to change its length
+- Section presets (a gentle hill, a tight hairpin) and a random track generator
+- Collapse cascades in the checks list: when one dive sends every later section underground,
+  report the dive once with "and the eight sections after it"
+- A clothoid loop profile so the entry pull-out is softer
+- Jump gaps could match the parabola to the ball's actual speed
+- Return section settings: a slider for its turn radius
 
-## Theme build-outs after Phase 5
+## Looks
 
-### Primeval Valley
+- Minimal: a soft reflection of the tube in the floor
+- Haunted Hollow: fog wisps, a graveyard silhouette ring at the park edge, bats
+- Primeval Valley: a volcano on the horizon with embers, fern silhouettes
+- Xeno Reach: a nebula layer and drifting asteroids
+- More skins from earlier ideas: Frostline, Abyss, Neon District
+- A theme editor: pick the tube, ball and accent colours live
 
-- Dusk sky with a low orange sun, warm fog, long shadows
-- Terrain material: red earth, river gorge cut through the park, lava glow on the volcano
-- Props: ferns (three sizes), cycads, boulders with moss, volcano with smoke particles, river with
-  animated water, bones and eggs
-- Creatures: a long-necked grazer that looms over a turn, a pack hunter that chases the train,
-  a flyer that circles the lift hill
-- Scares: roar at a trigger, chase along a straight, loom over a curve
-- Sound: jungle ambient with insects and distant roars, drum-based music bed, volcano rumble
+## Sharing and saving
 
-### Xeno Reach
+- A gallery of saved tracks in localStorage, not only the last one
+- Share links that also carry the speed multiplier and the camera choice
+- Export a short ride video with the MediaRecorder API
 
-- Twin moons (sky shader glow currently follows the key moon only; extend to several)
-- Alien terrain palette with bioluminescent patches, low-gravity hills (lower g in physics)
-- Props: crystal spires that hum, tractor-beam lift as a visual chain-lift replacement,
-  station modules, antenna arrays
-- Creatures: a tracker drone that follows the train, a sweeper beam across the track
-- Scares: beam sweep, drone dive, crystal shatter
-- Sound: synth pads, radio chatter, beam hum
+## Engine
 
-## Deferred from Phase 3
-
-- Per-car physics (each car's own slope) instead of the mean slope over the train
-- Clothoid loop and drop profiles to bring entry pull-out under 5 g
-- Validation runs synchronously on every change; move it to a worker for very long tracks
-- Block brakes and a second train
-- Camera shake and a lap-time board; photo mode during the ride
-- Audio: Doppler on scares, per-wheel clack timing from tie spacing, a settings slider for volume
-- A rollback-friendly stall display: show the train settling in the valley instead of freezing the hint
-
-## Deferred from Phase 2
-
-- Select any piece by clicking it, delete or re-parameterise it in place, insert in the middle
-- Smart close: suggest the curve and straight combination that brings the track back to the station
-- Carry bank through consecutive curves instead of unbanking between them
-- Clothoid (teardrop) loop profile instead of a stretched circle
-- Collision warning when a piece passes through existing track or the station roof
-- Hover highlight on the track and a piece list with per-piece length and height
-
-## Deferred from Phase 1
-
-- WebGPU engine option (the scene uses WebGL2; the sky shader is GLSL)
-- `@babylonjs/loaders` for `.glb` assets, added when the first file asset lands
-- Settings panel: MSAA, shadow quality, render scale override, auto scaling on and off
+- WebGPU engine option (the scene uses WebGL2; the shaders are GLSL)
+- Move track compilation to a worker for very long tracks
 - Touch controls for the fly camera and a pointer-lock fallback
-- Ground mist that avoids hillsides instead of drifting through them
-- Terrain level of detail for larger parks
+- Settings panel: MSAA, render scale override, auto scaling on and off
