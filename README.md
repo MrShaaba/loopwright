@@ -49,11 +49,12 @@ npm run format   # Prettier write
 | -------- | -------------------------------------------------------------------------------------------------- |
 | Build    | pick a piece in the palette, `Enter` or click the scene to snap it on, `Backspace` remove last     |
 | Build    | `Ctrl`/`Cmd+Z` undo, `Shift+Ctrl`/`Cmd+Z` redo, `4` fly to the track end, `Esc` drop the selection |
+| Ride     | `Space` dispatch the train, `C` switch seat and chase camera, `Esc` back to build mode             |
 | Orbit    | drag to orbit, right-drag to pan, scroll to zoom, `1` `2` `3` fly to presets                       |
 | Fly      | `F` to toggle, click to capture the mouse, `WASD` move, `Q`/`E` down/up, `Shift` hurry             |
-| Anywhere | `P` save a photo, `?` or `H` shortcuts                                                             |
+| Anywhere | `P` save a photo, `M` mute, `?` or `H` shortcuts                                                   |
 
-Ride shortcuts (start, camera switch) and prop controls (rotate, delete) arrive with those phases.
+Prop controls (rotate, delete) arrive with Phase 4.
 
 ## Project layout
 
@@ -61,6 +62,9 @@ Ride shortcuts (start, camera switch) and prop controls (rotate, delete) arrive 
 src/engine/scene/   terrain, sky, lighting, fog, performance governor
 src/engine/track/   pieces, pose cursor, spline, frames, track model, rail and support meshes
 src/engine/build/   build controller and command stack (undo/redo)
+src/engine/ride/    energy physics, validation sim, train, ride controller, markers
+src/engine/camera/  orbit, fly, seat and chase cameras
+src/engine/audio/   Web Audio synths for wind, rumble and the chain lift
 src/engine/theme/   theme configs (Haunted Hollow)
 src/ui/             Svelte 5 HUD, state and the single bridge module that talks to the engine
 ```
@@ -70,9 +74,11 @@ save format are pure TypeScript so they run under Vitest without a browser.
 
 ## Status
 
-Phases 1 and 2 of 5 are complete: the night park, cameras and HUD, then track building with
-twelve piece types, snapping, ghost preview, undo and redo, supports and circuit closure. See
-[ROADMAP.md](ROADMAP.md) for what comes next and what is deferred.
+Phases 1 to 3 of 5 are complete: the night park, cameras and HUD; track building with twelve
+piece types, snapping, ghost preview, undo and redo, supports and circuit closure; and ride mode
+with energy physics, a four-car train, seat and chase cameras, speed and g readouts, a validation
+sim with marked stall points, and synthesised wind and rumble. See [ROADMAP.md](ROADMAP.md) for
+what comes next and what is deferred.
 
 ## License
 

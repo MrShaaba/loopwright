@@ -1,20 +1,8 @@
 # Roadmap
 
-Phases 1 (scaffold, night park, cameras, HUD shell) and 2 (track building) are done. Each later
-phase ends with lint, tests and build green, a commit, and a note on what to look at in the browser.
-
-## Phase 3: ride mode
-
-- Energy physics: gravity along the tangent averaged over the cars, rolling resistance, air drag,
-  chain lift speed floor, brake and station decel
-- Four-car train mesh following the frames
-- Seat camera with smoothed up vector and speed-scaled head bob; orbit chase camera
-- Speed and vertical/lateral g readouts on the HUD
-- `Space` start, `C` switch camera, `Esc` exit
-- Validation sim from a standing start with red stall markers and reasons, open-circuit marker,
-  lateral-g warnings
-- Web Audio engine with wind and rumble whose pitch follows speed
-- Tests: integrator, stall detection
+Phases 1 (scaffold, night park, cameras, HUD shell), 2 (track building) and 3 (ride mode) are
+done. Each later phase ends with lint, tests and build green, a commit, and a note on what to look at
+in the browser.
 
 ## Phase 4: Haunted Hollow complete
 
@@ -57,6 +45,16 @@ phase ends with lint, tests and build green, a commit, and a note on what to loo
 - Creatures: a tracker drone that follows the train, a sweeper beam across the track
 - Scares: beam sweep, drone dive, crystal shatter
 - Sound: synth pads, radio chatter, beam hum
+
+## Deferred from Phase 3
+
+- Per-car physics (each car's own slope) instead of the mean slope over the train
+- Clothoid loop and drop profiles to bring entry pull-out under 5 g
+- Validation runs synchronously on every change; move it to a worker for very long tracks
+- Block brakes and a second train
+- Camera shake and a lap-time board; photo mode during the ride
+- Audio: Doppler on scares, per-wheel clack timing from tie spacing, a settings slider for volume
+- A rollback-friendly stall display: show the train settling in the valley instead of freezing the hint
 
 ## Deferred from Phase 2
 
