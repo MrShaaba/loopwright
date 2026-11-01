@@ -140,6 +140,35 @@ describe('TrackModel', () => {
     );
   });
 
+  it('absorbs a small misclosure without a kink at the seam', () => {
+    const model = new TrackModel();
+    const descent: PlacedPiece[] = [
+      { type: 'lift-hill', params: { height: 8 } },
+      { type: 'slope-down', params: {} },
+      { type: 'straight', params: { length: 8 } },
+      { type: 'straight', params: { length: 4 } },
+      { type: 'level-out', params: {} },
+    ];
+    for (const piece of [
+      ...descent,
+      curveRight,
+      curveRight,
+      { type: 'brake-run', params: {} },
+      ...descent,
+      curveRight,
+      curveRight,
+    ]) {
+      model.push(piece);
+    }
+    expect(model.closure.closed).toBe(true);
+    expect(model.closure.distance).toBeGreaterThan(0.05);
+    const seam = model.frames.filter(
+      (f) => f.flags.station || f.pieceIndex === model.pieces.length - 1,
+    );
+    for (const frame of seam) expect(frame.curvature).toBeLessThan(1 / 10);
+    expectContinuous(model.frames, true);
+  });
+
   it('refuses pieces that would dig into the ground when it knows the terrain', () => {
     const model = new TrackModel(undefined, { heightAt: () => 0 });
     expect(model.candidate(getPiece('lift-hill'), { height: 8 }).reason).toBeNull();

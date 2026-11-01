@@ -1,5 +1,6 @@
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { PlacedPiece } from '../save/schema';
+import { smoothstep } from '../util/math';
 import { buildFrames } from './frames';
 import { getPiece } from './pieces';
 import { clonePose, makePose, poseGap } from './pose';
@@ -20,6 +21,8 @@ export const CLOSE_HEADING_DEG = 8;
 export const CLOSE_PITCH_DEG = 8;
 /** Minimum height of the rails above the ground, in metres. */
 export const GROUND_CLEARANCE = 0.45;
+/** Keys over which a closed circuit's misclosure is blended away. */
+const SEAM_BLEND_KEYS = 24;
 
 export interface TrackModelOptions {
   /** Terrain height query; when given, pieces that would dig into the ground are refused. */
@@ -119,6 +122,25 @@ export class TrackModel {
     return into;
   }
 
+  /**
+   * Spreads the small misclosure over the last few keys so the seam is smooth, then drops the
+   * final key, which now coincides with the station entry.
+   */
+  private blendSeam(keys: TrackKey[]): void {
+    const first = keys[0];
+    const last = keys[keys.length - 1];
+    if (!first || !last || keys.length < 6) return;
+    const error = first.position.subtract(last.position);
+    const span = Math.min(SEAM_BLEND_KEYS, keys.length - 2);
+    for (let j = 0; j < span; j++) {
+      const key = keys[keys.length - 1 - j];
+      if (!key) continue;
+      const weight = smoothstep(0, 1, 1 - j / span);
+      key.position = key.position.add(error.scale(weight));
+    }
+    keys.pop();
+  }
+
   rebuild(): void {
     const geometries: PieceGeometry[] = [];
     const keys: TrackKey[] = [];
@@ -144,6 +166,7 @@ export class TrackModel {
       gap.headingDeg <= CLOSE_HEADING_DEG &&
       gap.pitchDeg <= CLOSE_PITCH_DEG;
     this.closure = { closed, ...gap };
+    if (closed) this.blendSeam(keys);
     this.frames = buildFrames(keys, closed);
     this.version++;
   }
