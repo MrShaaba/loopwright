@@ -132,6 +132,11 @@ export class RideController {
     return this.padCharge;
   }
 
+  /** The smoothed Shift boost factor, 1 when not held. */
+  get shiftBoost(): number {
+    return this.boost;
+  }
+
   /** A boost pad: a burst of extra speed that fades over a second or so. */
   applyBoost(): void {
     this.padCharge = 1;

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { RIDE_VIEW_LABELS } from '../../engine/camera/RideCamera';
+  import { SPEED_BAND_LABELS } from '../../engine/save/scores';
   import type { Controller } from '../bridge';
   import { play } from '../state/play.svelte';
   import { ride } from '../state/ride.svelte';
@@ -46,7 +47,9 @@
       <span class="score-value">{play.score.toLocaleString()}</span>
       <span class="score-row">
         {#if play.topScore !== null}
-          <span class="top">top {play.topScore.toLocaleString()}</span>
+          <span class="top" title="Top score, {SPEED_BAND_LABELS[play.band]}"
+            >top {play.topScore.toLocaleString()}</span
+          >
         {/if}
         <span class="combo" class:hot={play.combo >= 5}>
           {#if play.combo > 0}×{play.combo} combo{:else}no combo{/if}

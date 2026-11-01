@@ -71,3 +71,27 @@ describe('high scores', () => {
     expect(loadScores('x', broken).map((e) => e.score)).toEqual([5]);
   });
 });
+
+describe('speed bands', () => {
+  it('splits laps at 1x and 2x, with the slider steps landing where expected', async () => {
+    const { speedBand, bandKey } = await import('./scores');
+    expect(speedBand(0.25)).toBe('band1');
+    expect(speedBand(1)).toBe('band1');
+    expect(speedBand(1.05)).toBe('band2');
+    expect(speedBand(1.6)).toBe('band2');
+    expect(speedBand(2)).toBe('band2');
+    expect(speedBand(2.05)).toBe('band3');
+    expect(speedBand(3)).toBe('band3');
+    expect(bandKey('abc', 'band2')).toBe('abc|band2');
+  });
+
+  it("keeps a track's bands as separate tables", async () => {
+    const { bandKey } = await import('./scores');
+    const store = memoryStore();
+    recordScore(bandKey('t', 'band1'), entry(100), store);
+    recordScore(bandKey('t', 'band3'), entry(900), store);
+    expect(loadScores(bandKey('t', 'band1'), store).map((e) => e.score)).toEqual([100]);
+    expect(loadScores(bandKey('t', 'band2'), store)).toEqual([]);
+    expect(loadScores(bandKey('t', 'band3'), store).map((e) => e.score)).toEqual([900]);
+  });
+});

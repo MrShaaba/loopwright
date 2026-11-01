@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
+  import { SPEED_BAND_LABELS } from '../../engine/save/scores';
   import type { Controller } from '../bridge';
   import { play } from '../state/play.svelte';
   import { ride } from '../state/ride.svelte';
@@ -22,10 +23,10 @@
     transition:fade={{ duration: 160 }}
   >
     <div class="head">
-      <p class="eyebrow">Lap {s.lap} complete</p>
+      <p class="eyebrow">Lap {s.lap} complete · {SPEED_BAND_LABELS[s.band]}</p>
       {#if s.rank !== null}
         <p class="rank" class:top={s.rank === 1}>
-          {s.rank === 1 ? 'New top score' : `#${s.rank} on this track`}
+          {s.rank === 1 ? 'New top score' : `#${s.rank} in this band`}
         </p>
       {/if}
     </div>

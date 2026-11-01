@@ -102,3 +102,24 @@ export function recordScore(
   store.write(JSON.stringify(Object.fromEntries(entries)));
   return { rank: rank >= 0 ? rank + 1 : null, table: list };
 }
+
+/** Speed bands keep scores fair: a 3x lap only competes with other 3x laps. */
+export type SpeedBand = 'band1' | 'band2' | 'band3';
+
+export const SPEED_BAND_LABELS: Record<SpeedBand, string> = {
+  band1: '1x and under',
+  band2: 'up to 2x',
+  band3: 'above 2x',
+};
+
+/** The band for the highest speed multiplier used during a lap. */
+export function speedBand(multiplier: number): SpeedBand {
+  if (multiplier <= 1.0001) return 'band1';
+  if (multiplier <= 2.0001) return 'band2';
+  return 'band3';
+}
+
+/** The table key for a track and band. */
+export function bandKey(trackKey: string, band: SpeedBand): string {
+  return `${trackKey}|${band}`;
+}

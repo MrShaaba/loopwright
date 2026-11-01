@@ -194,6 +194,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     play.gemsTotal = status.gemsTotal;
     play.valueFactor = status.valueFactor;
     play.topScore = status.topScore;
+    play.band = status.band;
   };
   unsubscribe.push(game.game.events.on('status', applyGame));
   applyGame(game.game.status());

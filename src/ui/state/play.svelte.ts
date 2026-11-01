@@ -1,4 +1,5 @@
 import type { LapSummary, PlayMode } from '../../engine/game/GameController';
+import type { SpeedBand } from '../../engine/save/scores';
 
 export interface Pop {
   id: number;
@@ -23,6 +24,7 @@ export interface PlayUiState {
   seed: number;
   pops: Pop[];
   topScore: number | null;
+  band: SpeedBand;
   summary: LapSummary | null;
 }
 
@@ -40,5 +42,6 @@ export const play: PlayUiState = $state({
   seed: 1,
   pops: [],
   topScore: null,
+  band: 'band1',
   summary: null,
 });
