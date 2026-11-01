@@ -3,6 +3,7 @@ import { compileTrack, createSection } from '../track/Track';
 import {
   createPhysicsTrack,
   createRideState,
+  feltVerticalG,
   PHYSICS_DEFAULTS,
   resetRide,
   sampleTrack,
@@ -95,5 +96,40 @@ describe('stepRide', () => {
       laps: 0,
       travelled: 0,
     });
+  });
+});
+
+describe('feltVerticalG', () => {
+  it('reads 1 g at any speed on a level straight', () => {
+    const track = physics([createSection('straight', { length: 60 })]);
+    expect(feltVerticalG(track, 20, 0)).toBeCloseTo(1, 3);
+    expect(feltVerticalG(track, 20, 30)).toBeCloseTo(1, 2);
+  });
+
+  it('squeezes in a dip and lifts over a crest, more at higher speed', () => {
+    const track = physics([
+      createSection('straight', { length: 20 }),
+      createSection('wave', { length: 80, waves: 2, amplitude: 6 }),
+      createSection('straight', { length: 20 }),
+    ]);
+    // Crests sit a quarter wave in; troughs at the half wave.
+    const crest = 20 + 20;
+    const trough = 20 + 40;
+    expect(feltVerticalG(track, crest, 20)).toBeLessThan(0.6);
+    expect(feltVerticalG(track, trough, 20)).toBeGreaterThan(1.4);
+    expect(feltVerticalG(track, crest, 30)).toBeLessThan(feltVerticalG(track, crest, 20));
+    expect(feltVerticalG(track, trough, 30)).toBeGreaterThan(feltVerticalG(track, trough, 20));
+  });
+
+  it('stays positive through the top of a loop when the ball is fast enough', () => {
+    const track = physics([
+      createSection('straight', { length: 20 }),
+      createSection('loop', { radius: 9 }),
+    ]);
+    // The loop's top is roughly half-way around it.
+    const top = 20 + Math.PI * 9 * 1.05;
+    expect(feltVerticalG(track, top, 16)).toBeGreaterThan(0.5);
+    expect(feltVerticalG(track, top, 6)).toBeLessThan(0);
+    expect(feltVerticalG(track, 20 + 1, 25)).toBeGreaterThan(3);
   });
 });

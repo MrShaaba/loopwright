@@ -126,6 +126,34 @@ export function resetRide(state: RideState, params: PhysicsParams = PHYSICS_DEFA
 }
 
 const SAMPLE = createSample();
+const G_BEFORE = createSample();
+const G_AFTER = createSample();
+const G_HERE = createSample();
+const G_ACCEL = new Vector3();
+/** Metres either side of the ball used to measure how fast the tangent turns. */
+const G_SPAN = 0.5;
+
+/**
+ * Vertical g felt at arc length `s` moving at `speed` m/s: the centripetal acceleration from
+ * the track's curvature plus gravity, measured along the frame's up. 1 at rest on level
+ * track, above 1 in dips and at the bottom of loops, below 1 over crests, negative in airtime.
+ */
+export function feltVerticalG(
+  track: PhysicsTrack,
+  s: number,
+  speed: number,
+  params: PhysicsParams = PHYSICS_DEFAULTS,
+): number {
+  if (track.frames.length < 2) return 1;
+  sampleTrackToRef(track, s - G_SPAN, G_BEFORE);
+  sampleTrackToRef(track, s + G_SPAN, G_AFTER);
+  sampleTrackToRef(track, s, G_HERE);
+  // a = v^2 * dT/ds: the tangent's rate of turn points at the centre of curvature.
+  G_AFTER.tangent.subtractToRef(G_BEFORE.tangent, G_ACCEL);
+  G_ACCEL.scaleInPlace((speed * speed) / (2 * G_SPAN));
+  const centripetal = Vector3.Dot(G_ACCEL, G_HERE.up);
+  return (centripetal + params.gravity * G_HERE.up.y) / params.gravity;
+}
 
 function smoothSign(v: number): number {
   return Math.tanh(v / 0.25);

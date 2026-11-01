@@ -10,6 +10,7 @@ import {
   createPhysicsTrack,
   createRideState,
   createSample,
+  feltVerticalG,
   MULTIPLIER_MAX,
   MULTIPLIER_MIN,
   MULTIPLIER_STEP,
@@ -34,6 +35,8 @@ export interface RideStatus {
   time: number;
   muted: boolean;
   view: RideView;
+  /** Smoothed vertical g felt by the ball; 1 on level track, under 0.4 reads as airtime. */
+  gVertical: number;
 }
 
 export interface RideEvents {
@@ -43,6 +46,11 @@ export interface RideEvents {
 
 const STATUS_INTERVAL = 1 / 20;
 const BOOST_TAU = 0.22;
+/** How far the camera lifts in airtime and drops in a squeeze, metres per g away from 1. */
+const FEEL_PER_G = 0.2;
+const FEEL_LIFT_MAX = 0.4;
+const FEEL_SQUEEZE_MAX = 0.3;
+const FEEL_TAU = 0.12;
 
 /** Runs the ball along the track, drives the camera, the tube effects and the audio. */
 export class RideController {
@@ -59,6 +67,8 @@ export class RideController {
   private active = false;
   private statusTimer = 0;
   private lastTravelled = 0;
+  private gVertical = 1;
+  private feel = 0;
 
   constructor(
     compiled: CompiledTrack,
@@ -115,6 +125,8 @@ export class RideController {
     this.paused = false;
     this.boostHeld = false;
     this.boost = 1;
+    this.gVertical = 1;
+    this.feel = 0;
     resetRide(this.state);
     this.lastTravelled = 0;
     this.placeBall();
@@ -176,12 +188,27 @@ export class RideController {
     this.lastTravelled = this.state.travelled;
     sampleTrackToRef(this.track, this.state.s, this.sample);
     this.ball.place(this.sample, rolled);
-    this.camera.update(dt, this.track, this.state.s, this.speed, this.reducedMotion);
+    this.updateFeel(dt);
+    this.camera.update(dt, this.track, this.state.s, this.speed, this.reducedMotion, this.feel);
     this.statusTimer += dt;
     if (this.statusTimer >= STATUS_INTERVAL) {
       this.statusTimer = 0;
       this.emitStatus();
     }
+  }
+
+  /**
+   * Airtime and squeeze: the camera lifts over crests and drops in dips and loops, driven by the
+   * g the ball feels at its effective speed, so the multiplier scales it. Reduced motion keeps
+   * a third of it.
+   */
+  private updateFeel(dt: number): void {
+    const k = 1 - Math.exp(-dt / FEEL_TAU);
+    const g = this.paused ? 1 : feltVerticalG(this.track, this.state.s, this.speed);
+    this.gVertical += (g - this.gVertical) * k;
+    const raw = clamp((1 - this.gVertical) * FEEL_PER_G, -FEEL_SQUEEZE_MAX, FEEL_LIFT_MAX);
+    const target = raw * (this.reducedMotion ? 0.3 : 1);
+    this.feel += (target - this.feel) * k;
   }
 
   status(): RideStatus {
@@ -196,6 +223,7 @@ export class RideController {
       time: this.state.time,
       muted: this.audio.muted,
       view: this.camera.view,
+      gVertical: this.gVertical,
     };
   }
 

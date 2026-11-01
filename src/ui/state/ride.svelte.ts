@@ -13,6 +13,7 @@ export interface RideUiState {
   time: number;
   muted: boolean;
   view: RideView;
+  gVertical: number;
 }
 
 export const ride: RideUiState = $state({
@@ -26,4 +27,5 @@ export const ride: RideUiState = $state({
   time: 0,
   muted: false,
   view: 'inside',
+  gVertical: 1,
 });

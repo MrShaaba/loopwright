@@ -29,6 +29,13 @@
       <span class="badge paused">Paused</span>
     {/if}
   </div>
+  <p class="gforce" class:airtime={ride.gVertical < 0.4} class:heavy={ride.gVertical > 2.5}>
+    {#if ride.gVertical < 0.4}
+      Airtime
+    {:else}
+      {ride.gVertical.toFixed(1)} g
+    {/if}
+  </p>
 
   <div
     class="progress"
@@ -130,6 +137,29 @@
     font-size: 14px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+  }
+
+  .gforce {
+    position: absolute;
+    top: calc(150px + var(--safe-top));
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+    transition: color 0.2s ease;
+  }
+
+  .gforce.airtime {
+    color: var(--accent-text);
+  }
+
+  .gforce.heavy {
+    color: var(--warn);
   }
 
   .badge {

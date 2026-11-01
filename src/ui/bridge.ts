@@ -134,6 +134,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       ride.time = status.time;
       ride.muted = status.muted;
       ride.view = status.view;
+      ride.gVertical = status.gVertical;
     }),
   ];
   ride.multiplier = game.ride.multiplier;
