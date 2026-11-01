@@ -1,9 +1,13 @@
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { Matrix, Quaternion, Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { Constants } from '@babylonjs/core/Engines/constants';
 import { CreateBox } from '@babylonjs/core/Meshes/Builders/boxBuilder';
+import { CreateLineSystem } from '@babylonjs/core/Meshes/Builders/linesBuilder';
+import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import { CreatePolyhedron } from '@babylonjs/core/Meshes/Builders/polyhedronBuilder';
 import { CreateTorus } from '@babylonjs/core/Meshes/Builders/torusBuilder';
+import type { LinesMesh } from '@babylonjs/core/Meshes/linesMesh';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import '@babylonjs/core/Meshes/thinInstanceMesh';
 import type { Scene } from '@babylonjs/core/scene';
@@ -29,6 +33,13 @@ export const DEFAULT_ITEM_PALETTE: ItemPalette = {
 
 const KINDS: readonly ItemKind[] = ['ring', 'gem', 'boost', 'hazard'];
 
+/** The lane glow runs this far before a hazard, as a strip of tiles on the wall. */
+const LANE_GLOW_FROM = 20;
+const LANE_GLOW_TO = 3;
+const LANE_GLOW_STEP = 2.5;
+/** Points between two rings on a guide line, so arcs curve with the tube. */
+const GUIDE_STEPS = 4;
+
 interface Placement {
   item: Item;
   matrix: Matrix;
@@ -45,6 +56,10 @@ interface Placement {
 export class ItemView {
   private readonly bases: Record<ItemKind, Mesh>;
   private readonly materials: Record<ItemKind, StandardMaterial>;
+  private readonly laneBase: Mesh;
+  private readonly laneMaterial: StandardMaterial;
+  private guides: LinesMesh | null = null;
+  private readonly scene: Scene;
   private placements: Placement[] = [];
   private hidden = new Set<number>();
   private time = 0;
@@ -57,9 +72,12 @@ export class ItemView {
   private readonly world = new Matrix();
 
   constructor(scene: Scene, palette: ItemPalette = DEFAULT_ITEM_PALETTE) {
+    this.scene = scene;
     const material = (name: string): StandardMaterial => {
       const m = new StandardMaterial(name, scene);
       m.disableLighting = true;
+      // Items ignore fog so they read from far away: at 3x you need them early.
+      m.fogEnabled = false;
       return m;
     };
     this.materials = {
@@ -83,7 +101,19 @@ export class ItemView {
       base.material = this.materials[kind];
       base.isVisible = false;
       base.isPickable = false;
+      base.applyFog = false;
     }
+    // Lane glow: translucent tiles on the wall in the hazard's lane, fading in towards it.
+    this.laneMaterial = material('itemLane');
+    this.laneMaterial.alpha = 0.3;
+    this.laneMaterial.alphaMode = Constants.ALPHA_ADD;
+    this.laneMaterial.backFaceCulling = false;
+    this.laneMaterial.disableDepthWrite = true;
+    this.laneBase = CreatePlane('itemLaneBase', { width: 1.25, height: 2.1 }, scene);
+    this.laneBase.material = this.laneMaterial;
+    this.laneBase.isVisible = false;
+    this.laneBase.isPickable = false;
+    this.laneBase.applyFog = false;
     this.restyle(palette);
   }
 
@@ -93,6 +123,8 @@ export class ItemView {
     this.materials.gem.emissiveColor = palette.gem.scale(1.1);
     this.materials.boost.emissiveColor = palette.boost.scale(0.9);
     this.materials.hazard.emissiveColor = palette.hazard.scale(1.0);
+    this.laneMaterial.emissiveColor = palette.hazard.scale(0.55);
+    if (this.guides) this.guides.color = palette.ring.scale(0.7);
   }
 
   setVisible(visible: boolean): void {
@@ -104,6 +136,8 @@ export class ItemView {
   rebuild(items: readonly Item[], track: PhysicsTrack): void {
     this.placements = [];
     this.hidden = new Set();
+    this.buildGuides(items, track);
+    this.buildLaneGlow(items, track);
     const scale = Vector3.One();
     const forward = new Vector3();
     const upAxis = new Vector3();
@@ -154,6 +188,84 @@ export class ItemView {
     this.refresh();
   }
 
+  /** A faint line through each run of rings, so arcs can be read before you reach them. */
+  private buildGuides(items: readonly Item[], track: PhysicsTrack): void {
+    this.guides?.dispose();
+    this.guides = null;
+    const lines: Vector3[][] = [];
+    const groups = new Map<number, Item[]>();
+    for (const item of items) {
+      if (item.kind !== 'ring') continue;
+      groups.set(item.group, [...(groups.get(item.group) ?? []), item]);
+    }
+    const point = (s: number, theta: number): Vector3 => {
+      sampleTrackToRef(track, s, this.sample);
+      radialToRef(this.sample, theta, this.radial);
+      return this.radial.scale(FLOOR_OFFSET).addInPlace(this.sample.position);
+    };
+    for (const rings of groups.values()) {
+      if (rings.length < 2) continue;
+      const line: Vector3[] = [];
+      for (let i = 0; i < rings.length - 1; i++) {
+        const a = rings[i];
+        const b = rings[i + 1];
+        if (!a || !b) continue;
+        for (let k = 0; k < GUIDE_STEPS; k++) {
+          const t = k / GUIDE_STEPS;
+          const dTheta = ((b.theta - a.theta + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+          line.push(point(a.s + (b.s - a.s) * t, a.theta + dTheta * t));
+        }
+      }
+      const last = rings[rings.length - 1];
+      if (last) line.push(point(last.s, last.theta));
+      lines.push(line);
+    }
+    if (lines.length === 0) return;
+    this.guides = CreateLineSystem('itemGuides', { lines }, this.scene);
+    this.guides.color = this.ringColor.scale(0.7);
+    this.guides.alpha = 0.55;
+    this.guides.isPickable = false;
+    this.guides.applyFog = false;
+    this.guides.setEnabled(this.visible);
+  }
+
+  /** Tiles along the wall before each hazard, in its lane, so the danger reads early. */
+  private buildLaneGlow(items: readonly Item[], track: PhysicsTrack): void {
+    const hazards = items.filter((item) => item.kind === 'hazard');
+    const steps = Math.floor((LANE_GLOW_FROM - LANE_GLOW_TO) / LANE_GLOW_STEP) + 1;
+    const buffer = new Float32Array(hazards.length * steps * 16);
+    const matrix = new Matrix();
+    const position = new Vector3();
+    const up = new Vector3();
+    const side = new Vector3();
+    const scale = new Vector3();
+    let placed = 0;
+    for (const hazard of hazards) {
+      for (let k = 0; k < steps; k++) {
+        const s = hazard.s - LANE_GLOW_FROM + k * LANE_GLOW_STEP;
+        sampleTrackToRef(track, s, this.sample);
+        radialToRef(this.sample, hazard.theta, this.radial);
+        this.radial.scaleToRef(TUBE_RADIUS - 0.06, position).addInPlace(this.sample.position);
+        this.radial.scaleToRef(-1, up);
+        Vector3.CrossToRef(up, this.sample.tangent, side);
+        // Brighter tiles nearer the hazard: scale the width so the strip widens towards it.
+        const grow = 0.55 + (0.45 * (k + 1)) / steps;
+        scale.set(grow, 1, 1);
+        // A plane faces its local +Z, so local Z must be the wall's inward normal.
+        basisMatrixToRef(side, this.sample.tangent, up, position, scale, matrix);
+        matrix.copyToArray(buffer, placed * 16);
+        placed++;
+      }
+    }
+    if (placed === 0) {
+      this.laneBase.isVisible = false;
+      return;
+    }
+    this.laneBase.thinInstanceSetBuffer('matrix', buffer.subarray(0, placed * 16), 16, true);
+    this.laneBase.thinInstanceRefreshBoundingInfo();
+    this.laneBase.isVisible = this.visible;
+  }
+
   /** Hides an item (collected or hit) until `reset`. */
   hide(id: number): void {
     if (this.hidden.has(id)) return;
@@ -191,6 +303,8 @@ export class ItemView {
   }
 
   private refresh(): void {
+    this.guides?.setEnabled(this.visible);
+    this.laneBase.isVisible = this.visible && this.laneBase.thinInstanceCount > 0;
     for (const kind of KINDS) {
       const base = this.bases[kind];
       const list = this.visible
@@ -209,6 +323,9 @@ export class ItemView {
   }
 
   dispose(): void {
+    this.guides?.dispose();
+    this.laneBase.dispose();
+    this.laneMaterial.dispose();
     for (const kind of KINDS) {
       this.bases[kind].dispose();
       this.materials[kind].dispose();
