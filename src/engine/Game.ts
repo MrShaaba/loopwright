@@ -28,6 +28,8 @@ import {
 } from './track/Track';
 import { TubeView } from './tube/TubeView';
 import { DEG } from './util/math';
+import { IssueMarkers } from './validate/IssueMarkers';
+import { validateTrack, type ValidationResult } from './validate/validate';
 
 export type GameMode = 'edit' | 'ride';
 
@@ -50,6 +52,7 @@ export interface GameEvents {
   toast: string;
   track: TrackSummary;
   reducedMotion: boolean;
+  validation: ValidationResult;
 }
 
 interface GameParts {
@@ -100,10 +103,12 @@ export class Game {
   readonly audio: AudioEngine;
   readonly ride: RideController;
   readonly edit: EditController;
+  readonly markers: IssueMarkers;
   readonly performance: PerformanceGovernor;
   mode: GameMode = 'edit';
   doc: TrackDoc;
   compiled: CompiledTrack;
+  validation: ValidationResult;
   reducedMotion = false;
   private readonly canvas: HTMLCanvasElement;
   private readonly disposers: (() => void)[] = [];
@@ -126,6 +131,9 @@ export class Game {
     this.ride = parts.ride;
     this.doc = parts.doc;
     this.compiled = parts.compiled;
+    this.validation = validateTrack(this.doc.sections, this.compiled);
+    this.markers = new IssueMarkers(this.scene);
+    this.markers.show(this.validation.issues);
     this.performance = new PerformanceGovernor(this.engine, (sample) =>
       this.events.emit('performance', sample),
     );
@@ -289,7 +297,10 @@ export class Game {
       this.edit.flush();
       this.sky.update(dt);
       if (this.mode === 'ride') this.ride.update(dt);
-      else this.cameras.update(dt);
+      else {
+        this.cameras.update(dt);
+        this.markers.update(dt);
+      }
       this.tube.update(dt, this.ride.speed, this.reducedMotion);
       this.tube.setBall(this.ball.position, this.ball.color);
       this.floor.setBallPosition(this.ball.position);
@@ -320,8 +331,26 @@ export class Game {
     this.compiled = compileTrack(this.doc.sections);
     this.tube.rebuild(this.compiled);
     this.ride.syncTrack(this.compiled);
+    this.validation = validateTrack(this.doc.sections, this.compiled);
+    this.markers.show(this.validation.issues);
     saveTrack(this.doc);
     this.events.emit('track', this.summary());
+    this.events.emit('validation', this.validation);
+  }
+
+  /** Selects the section an issue points at and flies to it; whole-track issues frame everything. */
+  showIssue(index: number): void {
+    const issue = this.validation.issues[index];
+    if (!issue) return;
+    if (issue.sectionIndex < 0) {
+      this.edit.select(null);
+      this.frameTrack(true);
+      return;
+    }
+    const id = this.edit.idAt(issue.sectionIndex);
+    this.edit.select(id);
+    if (issue.position) this.cameras.flyToPoint(issue.position, 46);
+    else if (id) this.focusSection(id);
   }
 
   loadDoc(doc: TrackDoc): void {
@@ -388,10 +417,18 @@ export class Game {
   requestMode(mode: GameMode): void {
     if (mode === this.mode) return;
     if (mode === 'ride') {
+      const problem = this.validation.issues.find((issue) => issue.severity === 'error');
+      if (problem) {
+        this.toast(problem.message);
+        this.showIssue(this.validation.issues.indexOf(problem));
+        return;
+      }
       this.cameras.suspend();
+      this.markers.setVisible(false);
       this.ride.enter();
     } else {
       this.ride.exit();
+      this.markers.setVisible(true);
       this.cameras.resume();
     }
     this.mode = mode;
@@ -525,6 +562,7 @@ export class Game {
     this.engine.stopRenderLoop();
     for (const dispose of this.disposers) dispose();
     this.edit.dispose();
+    this.markers.dispose();
     this.ride.dispose();
     this.audio.dispose();
     this.rideCamera.dispose();

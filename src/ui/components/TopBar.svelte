@@ -5,12 +5,55 @@
   let { controller }: { controller: Controller } = $props();
 
   const fpsTone = $derived(ui.fps >= 55 ? 'ok' : ui.fps >= 30 ? 'warn' : 'danger');
+  let tracksOpen = $state(false);
+  let confirmId: string | null = $state(null);
+
+  function openTracks(): void {
+    tracksOpen = !tracksOpen;
+    confirmId = null;
+  }
+
+  function choose(id: string): void {
+    if (confirmId === id) {
+      tracksOpen = false;
+      confirmId = null;
+      controller.loadStarter(id);
+    } else {
+      confirmId = id;
+    }
+  }
 </script>
 
 <header class="topbar" class:quiet={ui.mode === 'ride'}>
   <div class="brand panel">
     <span class="wordmark">Loopwright</span>
-    <span class="track-name">{ui.track.name}</span>
+    <div class="tracks">
+      <button
+        class="track-name"
+        onclick={openTracks}
+        aria-expanded={tracksOpen}
+        aria-haspopup="menu"
+        title="Starter tracks"
+      >
+        {ui.track.name} <span class="caret" aria-hidden="true">▾</span>
+      </button>
+      {#if tracksOpen}
+        <div class="menu panel" role="menu" aria-label="Starter tracks">
+          <p class="eyebrow">Starter tracks</p>
+          {#each controller.starters as starter (starter.id)}
+            <button class="menu-item" role="menuitem" onclick={() => choose(starter.id)}>
+              <span class="menu-label">
+                {starter.name}
+                {#if confirmId === starter.id}
+                  <span class="confirm">Replace the current track?</span>
+                {/if}
+              </span>
+              <span class="menu-description">{starter.tagline}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
   </div>
 
   <nav class="tabs panel" aria-label="Mode">
@@ -101,10 +144,78 @@
     white-space: nowrap;
   }
 
+  .tracks {
+    position: relative;
+  }
+
   .track-name {
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
     color: var(--muted);
     font-size: 13px;
     white-space: nowrap;
+  }
+
+  .track-name:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+  }
+
+  .caret {
+    font-size: 10px;
+  }
+
+  .menu {
+    position: absolute;
+    left: 0;
+    top: calc(100% + 10px);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 320px;
+    padding: 10px;
+    background: var(--panel-strong);
+    z-index: 6;
+  }
+
+  .menu .eyebrow {
+    padding: 4px 8px 6px;
+  }
+
+  .menu-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+  }
+
+  .menu-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .menu-label {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-weight: 600;
+  }
+
+  .confirm {
+    color: var(--accent-text);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
+  .menu-description {
+    color: var(--muted);
+    font-size: 12px;
   }
 
   .tabs {

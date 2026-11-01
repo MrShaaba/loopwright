@@ -1,5 +1,13 @@
 import type { SectionItem } from '../../engine/edit/EditController';
 import type { ParamSpec, SectionType } from '../../engine/track/sections/types';
+import type { IssueKind } from '../../engine/validate/validate';
+
+export interface IssueSummary {
+  kind: IssueKind;
+  severity: 'error' | 'warning';
+  sectionIndex: number;
+  message: string;
+}
 
 export interface SectionDefSummary {
   type: SectionType;
@@ -16,6 +24,9 @@ export interface EditUiState {
   canUndo: boolean;
   canRedo: boolean;
   addMenuOpen: boolean;
+  checksOpen: boolean;
+  issues: IssueSummary[];
+  ok: boolean;
 }
 
 export const edit: EditUiState = $state({
@@ -26,4 +37,7 @@ export const edit: EditUiState = $state({
   canUndo: false,
   canRedo: false,
   addMenuOpen: false,
+  checksOpen: false,
+  issues: [],
+  ok: true,
 });

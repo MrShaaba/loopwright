@@ -28,6 +28,7 @@ export interface Controller {
   togglePause: () => void;
   toggleMute: () => void;
   loadStarter: (id: string) => void;
+  showIssue: (index: number) => void;
   selectSection: (id: string | null, focus?: boolean) => void;
   addSection: (type: SectionType) => void;
   removeSection: () => void;
@@ -134,6 +135,17 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   };
   unsubscribe.push(game.edit.events.on('change', applyEdit));
   applyEdit(game.edit.summary());
+  const applyValidation = (result: typeof game.validation): void => {
+    edit.issues = result.issues.map(({ kind, severity, sectionIndex, message }) => ({
+      kind,
+      severity,
+      sectionIndex,
+      message,
+    }));
+    edit.ok = result.ok;
+  };
+  unsubscribe.push(game.events.on('validation', applyValidation));
+  applyValidation(game.validation);
 
   const toggleHelp = (): void => {
     ui.helpOpen = !ui.helpOpen;
@@ -157,6 +169,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     handler: () => {
       if (ui.helpOpen) ui.helpOpen = false;
       else if (edit.addMenuOpen) edit.addMenuOpen = false;
+      else if (edit.checksOpen) edit.checksOpen = false;
       else if (game.mode === 'ride') game.requestMode('edit');
       else game.edit.select(null);
     },
@@ -200,8 +213,11 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     },
     loadStarter: (id) => {
       const found = getStarter(id);
-      if (found) game.loadDoc(found.doc);
+      if (!found) return;
+      game.loadDoc(found.doc);
+      game.toast(`Loaded ${found.name}`);
     },
+    showIssue: (index) => game.showIssue(index),
     selectSection: (id, focus = false) => {
       game.edit.select(id);
       if (id && focus) game.focusSection(id);
