@@ -26,6 +26,10 @@ export interface PlayUiState {
   topScore: number | null;
   band: SpeedBand;
   summary: LapSummary | null;
+  bestLapTime: number | null;
+  ghostAvailable: boolean;
+  /** The latest split against the ghost, shown briefly. */
+  split: { delta: number; id: number } | null;
 }
 
 export const play: PlayUiState = $state({
@@ -44,4 +48,7 @@ export const play: PlayUiState = $state({
   topScore: null,
   band: 'band1',
   summary: null,
+  bestLapTime: null,
+  ghostAvailable: false,
+  split: null,
 });

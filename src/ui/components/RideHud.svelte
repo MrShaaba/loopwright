@@ -42,6 +42,30 @@
       <span class="badge paused">Paused</span>
     {/if}
   </div>
+  {#if play.mode === 'time'}
+    <div class="score panel">
+      <span class="score-label">Time attack · {SPEED_BAND_LABELS[play.band]}</span>
+      <span class="score-value">{lap(ride.lapTime)}</span>
+      <span class="score-row">
+        {#if play.bestLapTime !== null}
+          <span class="top">best {lap(play.bestLapTime)}</span>
+          <span class:ghost-on={play.ghostAvailable}
+            >{play.ghostAvailable ? 'racing your ghost' : 'no ghost yet'}</span
+          >
+        {:else}
+          <span>set a lap to make a ghost</span>
+        {/if}
+      </span>
+    </div>
+    {#if play.split}
+      {#key play.split.id}
+        <p class="split" class:ahead={play.split.delta < 0} class:behind={play.split.delta > 0}>
+          {play.split.delta > 0 ? '+' : '−'}{Math.abs(play.split.delta).toFixed(2)}
+        </p>
+      {/key}
+    {/if}
+  {/if}
+
   {#if play.mode === 'game'}
     <div class="score panel">
       <span class="score-value">{play.score.toLocaleString()}</span>
@@ -179,6 +203,14 @@
         </button>
         <button
           class="segment"
+          class:active={play.mode === 'time'}
+          aria-pressed={play.mode === 'time'}
+          onclick={() => controller.setPlayMode('time')}
+        >
+          Time
+        </button>
+        <button
+          class="segment"
           class:active={play.mode === 'cruise'}
           aria-pressed={play.mode === 'cruise'}
           onclick={() => controller.setPlayMode('cruise')}
@@ -312,6 +344,55 @@
     gap: 4px;
     min-width: 200px;
     padding: 10px 14px;
+  }
+
+  .score-label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .ghost-on {
+    color: var(--accent-text);
+  }
+
+  .split {
+    position: absolute;
+    top: calc(176px + var(--safe-top));
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7);
+    animation: split-in 2.2s ease-out forwards;
+  }
+
+  .split.ahead {
+    color: var(--ok);
+  }
+
+  .split.behind {
+    color: var(--danger);
+  }
+
+  @keyframes split-in {
+    0% {
+      opacity: 0;
+      transform: translate(-50%, 8px);
+    }
+    12% {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+    80% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
   }
 
   .score-value {

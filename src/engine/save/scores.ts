@@ -123,3 +123,29 @@ export function speedBand(multiplier: number): SpeedBand {
 export function bandKey(trackKey: string, band: SpeedBand): string {
   return `${trackKey}|${band}`;
 }
+
+/** Fastest laps first; ties go to the earlier lap. */
+export function sortLapTimes(entries: readonly ScoreEntry[]): ScoreEntry[] {
+  return [...entries].sort((a, b) => a.lapTime - b.lapTime || a.date.localeCompare(b.date));
+}
+
+/** The fastest-lap table for a key, fastest first. */
+export function loadLapTimes(key: string, store: ScoreStore = browserScoreStore): ScoreEntry[] {
+  return sortLapTimes(readTable(store)[key] ?? []);
+}
+
+/** Adds a lap to a fastest-lap table, keeping the top ten. */
+export function recordLapTime(
+  key: string,
+  entry: ScoreEntry,
+  store: ScoreStore = browserScoreStore,
+): ScoreResult {
+  const table = readTable(store);
+  const list = sortLapTimes([...(table[key] ?? []), entry]).slice(0, SCORES_PER_TRACK);
+  const rank = list.indexOf(entry);
+  delete table[key];
+  const entries = Object.entries(table).slice(-(MAX_TRACKS - 1));
+  entries.push([key, list]);
+  store.write(JSON.stringify(Object.fromEntries(entries)));
+  return { rank: rank >= 0 ? rank + 1 : null, table: list };
+}

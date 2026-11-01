@@ -10,6 +10,7 @@ import { RideCamera } from './camera/RideCamera';
 import { EditController } from './edit/EditController';
 import { Emitter } from './events';
 import { GameController, type PlayMode } from './game/GameController';
+import { GhostView } from './game/GhostView';
 import { ItemView } from './game/ItemView';
 import { KeyRegistry, type KeyBinding } from './input/Keys';
 import { Ball } from './ride/Ball';
@@ -120,6 +121,7 @@ export class Game {
   readonly ride: RideController;
   readonly edit: EditController;
   readonly items: ItemView;
+  readonly ghostView: GhostView;
   readonly game: GameController;
   readonly markers: IssueMarkers;
   readonly performance: PerformanceGovernor;
@@ -154,7 +156,16 @@ export class Game {
     this.markers = new IssueMarkers(this.scene);
     this.markers.show(this.validation.issues);
     this.items = new ItemView(this.scene, this.itemPalette());
-    this.game = new GameController(this.compiled, this.doc.seed, this.ride, this.items, this.audio);
+    this.ghostView = new GhostView(this.scene);
+    this.atmosphere.glow.addExcludedMesh(this.ghostView.mesh);
+    this.game = new GameController(
+      this.compiled,
+      this.doc.seed,
+      this.ride,
+      this.items,
+      this.audio,
+      this.ghostView,
+    );
     this.game.events.on('pop', (pop) => {
       const point = this.project(pop.position);
       if (point)
@@ -544,7 +555,7 @@ export class Game {
       fog: theme.fog,
       lighting: theme.lighting,
       cameras: [...this.cameras.cameras, this.rideCamera.camera],
-      glowExcluded: [...this.sky.glowExcluded, this.ball.mesh, this.ball.halo],
+      glowExcluded: [...this.sky.glowExcluded, this.ball.mesh, this.ball.halo, this.ghostView.mesh],
     });
     this.floor.restyle(theme.floor, theme.fog, theme.ball);
     this.tube.restyle(theme.tube, theme.fog);
@@ -776,6 +787,7 @@ export class Game {
     for (const dispose of this.disposers) dispose();
     this.edit.dispose();
     this.game.dispose();
+    this.ghostView.dispose();
     this.items.dispose();
     this.markers.dispose();
     this.ride.dispose();

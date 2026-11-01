@@ -95,3 +95,25 @@ describe('speed bands', () => {
     expect(loadScores(bandKey('t', 'band3'), store).map((e) => e.score)).toEqual([900]);
   });
 });
+
+describe('fastest laps', () => {
+  it('ranks laps fastest first and caps the table', async () => {
+    const { loadLapTimes, recordLapTime } = await import('./scores');
+    const store = memoryStore();
+    const lap = (seconds: number, date: string) => ({ ...entry(0, date), lapTime: seconds });
+    expect(recordLapTime('t|time', lap(40, '2026-11-01T10:00:00Z'), store).rank).toBe(1);
+    expect(recordLapTime('t|time', lap(35, '2026-11-01T10:01:00Z'), store).rank).toBe(1);
+    expect(recordLapTime('t|time', lap(38, '2026-11-01T10:02:00Z'), store).rank).toBe(2);
+    expect(loadLapTimes('t|time', store).map((e) => e.lapTime)).toEqual([35, 38, 40]);
+    for (let i = 0; i < 12; i++)
+      recordLapTime(
+        't|time',
+        lap(20 + i, `2026-11-02T10:${String(i).padStart(2, '0')}:00Z`),
+        store,
+      );
+    const table = loadLapTimes('t|time', store);
+    expect(table).toHaveLength(SCORES_PER_TRACK);
+    expect(table[0]?.lapTime).toBe(20);
+    expect(recordLapTime('t|time', lap(60, '2026-11-03T00:00:00Z'), store).rank).toBeNull();
+  });
+});

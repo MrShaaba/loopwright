@@ -40,7 +40,7 @@ export interface Controller {
   restartRide: () => void;
   steer: (input: number) => void;
   dismissSummary: () => void;
-  setPlayMode: (mode: 'game' | 'cruise') => void;
+  setPlayMode: (mode: 'game' | 'time' | 'cruise') => void;
   toggleItems: () => void;
   reshuffleItems: () => void;
   loadStarter: (id: string) => void;
@@ -195,6 +195,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     play.valueFactor = status.valueFactor;
     play.topScore = status.topScore;
     play.band = status.band;
+    play.bestLapTime = status.bestLapTime;
+    play.ghostAvailable = status.ghostAvailable;
   };
   unsubscribe.push(game.game.events.on('status', applyGame));
   applyGame(game.game.status());
@@ -213,6 +215,17 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     }),
     game.ride.events.on('active', (active) => {
       if (!active) play.summary = null;
+    }),
+  );
+  let splitTimer: ReturnType<typeof setTimeout> | null = null;
+  let splitId = 0;
+  unsubscribe.push(
+    game.game.events.on('split', (split) => {
+      play.split = { delta: split.delta, id: ++splitId };
+      if (splitTimer) clearTimeout(splitTimer);
+      splitTimer = setTimeout(() => {
+        play.split = null;
+      }, 2200);
     }),
   );
   let popId = 0;

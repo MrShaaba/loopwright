@@ -10,7 +10,7 @@ export interface Prefs {
   muted: boolean;
   view: 'inside' | 'follow';
   endless: boolean;
-  playMode: 'game' | 'cruise';
+  playMode: 'game' | 'time' | 'cruise';
 }
 
 function read(key: string): unknown {
@@ -50,7 +50,9 @@ export function loadPrefs(): Partial<Prefs> {
   if (typeof record.muted === 'boolean') prefs.muted = record.muted;
   if (record.view === 'inside' || record.view === 'follow') prefs.view = record.view;
   if (typeof record.endless === 'boolean') prefs.endless = record.endless;
-  if (record.playMode === 'game' || record.playMode === 'cruise') prefs.playMode = record.playMode;
+  if (record.playMode === 'game' || record.playMode === 'time' || record.playMode === 'cruise') {
+    prefs.playMode = record.playMode;
+  }
   return prefs;
 }
 

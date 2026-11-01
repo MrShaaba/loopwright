@@ -4,12 +4,17 @@ import { Emitter } from '../events';
 import type { RideController } from '../ride/RideController';
 import {
   bandKey,
+  loadLapTimes,
   loadScores,
+  recordLapTime,
   recordScore,
   speedBand,
   type ScoreEntry,
   type SpeedBand,
 } from '../save/scores';
+import { GhostRecorder, sampleGhost, type GhostRecording } from './ghost';
+import { loadGhost, saveGhost } from './ghostStore';
+import type { GhostView } from './GhostView';
 import type { CompiledTrack } from '../track/Track';
 import { createPhysicsTrack, wrapTheta, type PhysicsTrack } from '../ride/BallPhysics';
 import type { ItemView } from './ItemView';
@@ -23,7 +28,7 @@ import {
   type RunStats,
 } from './scoring';
 
-export type PlayMode = 'game' | 'cruise';
+export type PlayMode = 'game' | 'time' | 'cruise';
 
 export interface PopEvent {
   kind: 'ring' | 'gem' | 'boost' | 'hazard' | 'miss';
@@ -48,9 +53,14 @@ export interface GameStatus {
   /** Best score on this track in the current speed band, or null. */
   topScore: number | null;
   band: SpeedBand;
+  /** Fastest lap in this band, or null; Time Attack races its ghost. */
+  bestLapTime: number | null;
+  ghostAvailable: boolean;
 }
 
 export interface LapSummary {
+  /** Scored lap in Game mode, or a fastest lap in Time Attack. */
+  kind: 'score' | 'time';
   entry: ScoreEntry;
   /** 1-based rank in the track's table for this band, or null when it did not make the top ten. */
   rank: number | null;
@@ -59,11 +69,18 @@ export interface LapSummary {
   band: SpeedBand;
 }
 
+export interface SplitEvent {
+  sectionIndex: number;
+  /** Seconds behind (positive) or ahead (negative) of the ghost at this section. */
+  delta: number;
+}
+
 export interface GameEvents {
   status: GameStatus;
   pop: PopEvent;
   layout: ItemLayout;
   summary: LapSummary;
+  split: SplitEvent;
 }
 
 /** Angular reach of the ball around the tube for each kind, radians. */
@@ -92,6 +109,11 @@ export class GameController {
   private band: SpeedBand = 'band1';
   /** Highest multiplier (slider times Shift boost) used so far this lap. */
   private maxMultiplier = 1;
+  private sectionCount = 1;
+  private recorder = new GhostRecorder(1);
+  private ghost: GhostRecording | null = null;
+  private bestLapTime: number | null = null;
+  private lastSection = -1;
 
   constructor(
     compiled: CompiledTrack,
@@ -99,6 +121,7 @@ export class GameController {
     private readonly ride: RideController,
     private readonly view: ItemView,
     private readonly audio: AudioEngine,
+    private readonly ghostView: GhostView,
   ) {
     this.track = createPhysicsTrack(compiled.frames);
     this.setTrack(compiled, seed);
@@ -114,13 +137,24 @@ export class GameController {
   }
 
   private refreshTop(): void {
-    this.topScore = this.trackKey
-      ? (loadScores(bandKey(this.trackKey, this.band))[0]?.score ?? null)
-      : null;
+    if (!this.trackKey) {
+      this.topScore = null;
+      this.bestLapTime = null;
+      this.ghost = null;
+      return;
+    }
+    const key = bandKey(this.trackKey, this.band);
+    this.topScore = loadScores(key)[0]?.score ?? null;
+    this.bestLapTime = loadLapTimes(`${key}|time`)[0]?.lapTime ?? null;
+    this.ghost = loadGhost(`${key}|ghost`);
   }
 
   /** Each lap is its own scored run: record it, hand the HUD a summary, then start fresh. */
   private onLap(lap: number, seconds: number): void {
+    if (this.mode === 'time') {
+      this.onTimeLap(lap, seconds);
+      return;
+    }
     if (this.mode !== 'game') return;
     const band = speedBand(this.maxMultiplier);
     const entry: ScoreEntry = {
@@ -136,7 +170,14 @@ export class GameController {
     const result = this.trackKey
       ? recordScore(bandKey(this.trackKey, band), entry)
       : { rank: null, table: [] };
-    this.events.emit('summary', { entry, rank: result.rank, table: result.table, lap, band });
+    this.events.emit('summary', {
+      kind: 'score',
+      entry,
+      rank: result.rank,
+      table: result.table,
+      lap,
+      band,
+    });
     this.stats = createRunStats();
     this.valueFactor = 1;
     this.speedAtHit = 0;
@@ -145,9 +186,47 @@ export class GameController {
     this.emitStatus();
   }
 
+  /** Time Attack: the lap time is the score, and a fastest lap becomes the new ghost. */
+  private onTimeLap(lap: number, seconds: number): void {
+    const band = speedBand(this.maxMultiplier);
+    const entry: ScoreEntry = {
+      score: 0,
+      rings: 0,
+      gems: 0,
+      bestCombo: 0,
+      topSpeed: Math.round(this.stats.topSpeedKmh),
+      lapTime: seconds,
+      multiplier: Number(this.maxMultiplier.toFixed(2)),
+      date: new Date().toISOString(),
+    };
+    const key = `${bandKey(this.trackKey, band)}|time`;
+    const result = this.trackKey ? recordLapTime(key, entry) : { rank: null, table: [] };
+    if (this.trackKey && result.rank === 1) {
+      saveGhost(
+        `${bandKey(this.trackKey, band)}|ghost`,
+        this.recorder.finish(seconds, this.track.length),
+      );
+    }
+    this.events.emit('summary', {
+      kind: 'time',
+      entry,
+      rank: result.rank,
+      table: result.table,
+      lap,
+      band,
+    });
+    this.recorder.reset(this.sectionCount);
+    this.lastSection = -1;
+    this.stats = createRunStats();
+    this.maxMultiplier = this.ride.multiplier;
+    this.refreshTop();
+    this.emitStatus();
+  }
+
   /** Regenerates the layout for a track and seed. */
   setTrack(compiled: CompiledTrack, seed: number): void {
     this.track = createPhysicsTrack(compiled.frames);
+    this.sectionCount = compiled.ranges.length;
     this.layout = generateItems(compiled, seed);
     this.view.rebuild(this.layout.items, this.track);
     this.resetRun();
@@ -181,6 +260,7 @@ export class GameController {
   private applyVisibility(riding: boolean): void {
     const show = this.mode === 'game' && (riding || this.showInEditor);
     this.view.setVisible(show);
+    this.ghostView.setVisible(this.mode === 'time' && riding && this.ghost !== null);
   }
 
   private resetRun(): void {
@@ -190,6 +270,8 @@ export class GameController {
     this.valueFactor = 1;
     this.speedAtHit = 0;
     this.maxMultiplier = this.ride.multiplier;
+    this.recorder.reset(this.sectionCount);
+    this.lastSection = -1;
     this.lastS = this.ride.state.s;
     this.lastLap = this.ride.state.laps;
     this.emitStatus();
@@ -202,6 +284,10 @@ export class GameController {
   }
 
   update(): void {
+    if (this.mode === 'time') {
+      this.updateTimeAttack();
+      return;
+    }
     if (this.mode !== 'game' || !this.ride.isActive || this.ride.paused) return;
     const state = this.ride.state;
     if (state.laps !== this.lastLap) {
@@ -235,6 +321,47 @@ export class GameController {
       const hit = delta <= REACH[item.kind];
       this.resolve(item, hit, speedKmh);
     }
+  }
+
+  /** Records the lap for the ghost, replays the best ghost, and reports splits at section entries. */
+  private updateTimeAttack(): void {
+    if (!this.ride.isActive || this.ride.paused) return;
+    const state = this.ride.state;
+    if (state.phase !== 'running') return;
+    const lapTime = state.time - state.lapStart;
+    const speedKmh = this.ride.speed * 3.6;
+    if (speedKmh > this.stats.topSpeedKmh) this.stats.topSpeedKmh = speedKmh;
+    const used = this.ride.multiplier * this.ride.shiftBoost;
+    if (used > this.maxMultiplier) this.maxMultiplier = used;
+    const band = speedBand(Math.max(this.maxMultiplier, this.ride.multiplier));
+    if (band !== this.band) {
+      this.band = band;
+      this.refreshTop();
+      this.applyVisibility(true);
+      this.emitStatus();
+    }
+    const sectionIndex = this.sectionAt(state.s);
+    this.recorder.record(lapTime, state.s, state.theta, sectionIndex);
+    if (sectionIndex !== this.lastSection) {
+      const previous = this.lastSection;
+      this.lastSection = sectionIndex;
+      const ghostSplit = this.ghost?.splits[sectionIndex] ?? -1;
+      if (previous >= 0 && ghostSplit >= 0) {
+        this.events.emit('split', { sectionIndex, delta: lapTime - ghostSplit });
+      }
+    }
+    if (this.ghost) {
+      const at = sampleGhost(this.ghost, lapTime);
+      this.ghostView.place(this.track, at.s, at.theta);
+    }
+  }
+
+  private sectionAt(s: number): number {
+    const index = Math.min(
+      this.track.frames.length - 1,
+      Math.max(0, Math.round(s / this.track.step)),
+    );
+    return this.track.frames[index]?.sectionIndex ?? 0;
   }
 
   private resolve(item: Item, hit: boolean, speedKmh: number): void {
@@ -319,6 +446,8 @@ export class GameController {
       boosts: this.stats.boosts,
       topScore: this.topScore,
       band: this.band,
+      bestLapTime: this.bestLapTime,
+      ghostAvailable: this.ghost !== null,
     };
   }
 
