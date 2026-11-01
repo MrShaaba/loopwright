@@ -59,7 +59,7 @@
     {#if s.table.length > 1}
       <ol class="table">
         {#each s.table.slice(0, 5) as row, index (row.date + index)}
-          <li class:you={row === s.entry}>
+          <li class:you={row.date === s.entry.date && row.score === s.entry.score}>
             <span class="place">{index + 1}</span>
             <span class="score">{row.score.toLocaleString()}</span>
             <span class="meta"
