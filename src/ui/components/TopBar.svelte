@@ -7,6 +7,12 @@
   const fpsTone = $derived(ui.fps >= 55 ? 'ok' : ui.fps >= 30 ? 'warn' : 'danger');
   let tracksOpen = $state(false);
   let confirmId: string | null = $state(null);
+  let themesOpen = $state(false);
+
+  function pickTheme(id: string): void {
+    themesOpen = false;
+    controller.setTheme(id);
+  }
 
   function openTracks(): void {
     tracksOpen = !tracksOpen;
@@ -77,6 +83,35 @@
   </nav>
 
   <div class="meters panel">
+    <div class="themes">
+      <button
+        class="theme-button"
+        onclick={() => (themesOpen = !themesOpen)}
+        aria-expanded={themesOpen}
+        aria-haspopup="menu"
+        title="Theme (T cycles)"
+      >
+        <span class="swatch" aria-hidden="true"></span>
+        {ui.theme.name}
+      </button>
+      {#if themesOpen}
+        <div class="menu theme-menu panel" role="menu" aria-label="Themes">
+          <p class="eyebrow">Theme · <span class="kbd">T</span> cycles</p>
+          {#each controller.themes as theme (theme.id)}
+            <button
+              class="menu-item"
+              class:current={theme.id === ui.theme.id}
+              role="menuitemradio"
+              aria-checked={theme.id === ui.theme.id}
+              onclick={() => pickTheme(theme.id)}
+            >
+              <span class="menu-label">{theme.name}</span>
+              <span class="menu-description">{theme.tagline}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
     <span class="fps {fpsTone}" title="Frames per second · render scale 1/{ui.renderScale}">
       {ui.fps || '–'} fps{#if ui.renderScale > 1}<span class="scale">
           · {ui.renderScale}×</span
@@ -249,6 +284,45 @@
     padding: 0 8px 0 10px;
   }
 
+  .themes {
+    position: relative;
+  }
+
+  .theme-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .theme-button:hover {
+    background: rgba(255, 255, 255, 0.09);
+  }
+
+  .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .theme-menu {
+    left: auto;
+    right: 0;
+  }
+
+  .menu-item.current {
+    background: var(--accent-soft);
+  }
+
   .fps {
     min-width: 64px;
     font-family: var(--mono);
@@ -279,7 +353,8 @@
     }
 
     .track-name,
-    .fps {
+    .fps,
+    .theme-button {
       display: none;
     }
 

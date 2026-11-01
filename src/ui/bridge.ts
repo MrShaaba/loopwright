@@ -3,7 +3,7 @@ import { Game, type GameMode } from '../engine/Game';
 import type { KeyBinding } from '../engine/input/Keys';
 import { loadPrefs, loadSavedTrack, savePrefs } from '../engine/save/storage';
 import { DEFAULT_STARTER_ID, getStarter, STARTERS } from '../engine/starters';
-import { DEFAULT_THEME_ID, getTheme } from '../engine/theme';
+import { DEFAULT_THEME_ID, getTheme, hasTheme, listThemes } from '../engine/theme';
 import { listSectionDefs } from '../engine/track/sections';
 import type { ParamValue, SectionType } from '../engine/track/sections/types';
 import { edit } from './state/edit.svelte';
@@ -16,6 +16,8 @@ export interface Controller {
   readonly bindings: readonly KeyBinding[];
   readonly isMac: boolean;
   readonly starters: readonly { id: string; name: string; tagline: string }[];
+  readonly themes: readonly { id: string; name: string; tagline: string }[];
+  setTheme: (id: string) => void;
   setCameraMode: (mode: CameraMode) => void;
   toggleCamera: () => void;
   flyTo: (presetId: string) => void;
@@ -59,15 +61,14 @@ function applyAccent(accent: { accent: string; accentSoft: string; accentText: s
 
 /** Boots the engine on the canvas and wires its events into the rune state. */
 export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
-  const theme = getTheme(DEFAULT_THEME_ID);
-  applyAccent(theme.ui);
-  ui.theme = { id: theme.id, name: theme.name, tagline: theme.tagline };
-  ui.phase = 'loading';
-
   const starter = getStarter(DEFAULT_STARTER_ID);
   if (!starter) throw new Error('Missing starter track');
   const doc = loadSavedTrack() ?? starter.doc;
   const prefs = loadPrefs();
+  const theme = getTheme(hasTheme(doc.theme) ? doc.theme : DEFAULT_THEME_ID);
+  applyAccent(theme.ui);
+  ui.theme = { id: theme.id, name: theme.name, tagline: theme.tagline };
+  ui.phase = 'loading';
 
   const game = await Game.create(canvas, theme, doc, (progress) => {
     ui.progress = progress;
@@ -105,6 +106,10 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     }),
     game.events.on('reducedMotion', (reduced) => {
       ui.reducedMotion = reduced;
+    }),
+    game.events.on('theme', (next) => {
+      applyAccent(next.ui);
+      ui.theme = { id: next.id, name: next.name, tagline: next.tagline };
     }),
     game.ride.events.on('status', (status) => {
       ride.speed = status.speed * 3.6;
@@ -184,6 +189,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     bindings: game.bindings,
     isMac: /Mac|iPhone|iPad/i.test(navigator.userAgent),
     starters: STARTERS.map(({ id, name, tagline }) => ({ id, name, tagline })),
+    themes: listThemes().map(({ id, name, tagline }) => ({ id, name, tagline })),
+    setTheme: (id) => game.setTheme(id),
     setCameraMode: (mode) => game.setCameraMode(mode),
     toggleCamera: () => game.toggleCamera(),
     flyTo: (id) => game.flyTo(id),

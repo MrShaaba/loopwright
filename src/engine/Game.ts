@@ -18,6 +18,7 @@ import { Floor } from './scene/Floor';
 import { Lighting } from './scene/Lighting';
 import { PerformanceGovernor, type PerformanceSample } from './scene/Performance';
 import { Sky } from './scene/Sky';
+import { getTheme, hasTheme, nextThemeId } from './theme';
 import type { ThemeConfig } from './theme/ThemeConfig';
 import {
   compileTrack,
@@ -53,6 +54,7 @@ export interface GameEvents {
   track: TrackSummary;
   reducedMotion: boolean;
   validation: ValidationResult;
+  theme: ThemeConfig;
 }
 
 interface GameParts {
@@ -91,12 +93,12 @@ export class Game {
   readonly keys = new KeyRegistry();
   readonly engine: Engine;
   readonly scene: Scene;
-  readonly theme: ThemeConfig;
-  readonly sky: Sky;
-  readonly lighting: Lighting;
+  theme: ThemeConfig;
+  sky: Sky;
+  lighting: Lighting;
   readonly cameras: CameraRig;
   readonly rideCamera: RideCamera;
-  readonly atmosphere: Atmosphere;
+  atmosphere: Atmosphere;
   readonly floor: Floor;
   readonly tube: TubeView;
   readonly ball: Ball;
@@ -356,6 +358,7 @@ export class Game {
   loadDoc(doc: TrackDoc): void {
     this.doc = createTrackDoc(doc.name, doc.theme, doc.sections);
     this.edit.load(doc.sections);
+    if (hasTheme(doc.theme)) this.setTheme(doc.theme);
     if (this.mode === 'edit') this.frameTrack(true);
   }
 
@@ -371,6 +374,35 @@ export class Game {
     if (!middle) return;
     const radius = Math.min(140, Math.max(32, range.length * 0.8 + 18));
     this.cameras.flyToPoint(middle.position, radius);
+  }
+
+  /** Re-skins the scene live. The track, physics and ride are untouched. */
+  setTheme(id: string): void {
+    if (!hasTheme(id) || id === this.theme.id) return;
+    const theme = getTheme(id);
+    this.theme = theme;
+    this.sky.dispose();
+    this.lighting.dispose();
+    this.atmosphere.dispose();
+    this.sky = new Sky(this.scene, theme.sky);
+    this.lighting = new Lighting(this.scene, theme.lighting);
+    this.atmosphere = new Atmosphere(this.scene, {
+      fog: theme.fog,
+      lighting: theme.lighting,
+      cameras: [...this.cameras.cameras, this.rideCamera.camera],
+      glowExcluded: [...this.sky.glowExcluded, this.ball.mesh, this.ball.halo],
+    });
+    this.floor.restyle(theme.floor, theme.fog, theme.ball);
+    this.tube.restyle(theme.tube, theme.fog);
+    this.ball.restyle(theme.ball);
+    this.doc = createTrackDoc(this.doc.name, theme.id, this.doc.sections);
+    saveTrack(this.doc);
+    this.events.emit('theme', theme);
+  }
+
+  cycleTheme(): void {
+    this.setTheme(nextThemeId(this.theme.id));
+    this.toast(this.theme.name);
   }
 
   /** Points the overview preset at the whole track and optionally flies there. */
@@ -536,6 +568,12 @@ export class Game {
       combo: 'KeyP',
       label: 'Pause and resume',
       handler: () => this.ride.togglePause(),
+    });
+    this.keys.bind({
+      scope: 'global',
+      combo: 'KeyT',
+      label: 'Next theme',
+      handler: () => this.cycleTheme(),
     });
     this.keys.bind({
       scope: 'global',
