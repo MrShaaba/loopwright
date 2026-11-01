@@ -1,10 +1,9 @@
 import type { CameraMode, CameraPreset } from '../engine/camera/CameraRig';
 import { Game, type GameMode } from '../engine/Game';
 import type { KeyBinding } from '../engine/input/Keys';
-import { getTheme } from '../engine/theme';
-import { listPieces } from '../engine/track/pieces';
-import type { ParamValue } from '../engine/track/types';
-import { build, type PaletteEntry } from './state/build.svelte';
+import { loadPrefs, loadSavedTrack, savePrefs } from '../engine/save/storage';
+import { DEFAULT_STARTER_ID, getStarter, STARTERS } from '../engine/starters';
+import { DEFAULT_THEME_ID, getTheme } from '../engine/theme';
 import { ui } from './state/game.svelte';
 import { ride } from './state/ride.svelte';
 
@@ -13,45 +12,21 @@ export interface Controller {
   readonly presets: readonly CameraPreset[];
   readonly bindings: readonly KeyBinding[];
   readonly isMac: boolean;
+  readonly starters: readonly { id: string; name: string; tagline: string }[];
   setCameraMode: (mode: CameraMode) => void;
   toggleCamera: () => void;
   flyTo: (presetId: string) => void;
+  frameTrack: () => void;
   requestMode: (mode: GameMode) => void;
   takePhoto: () => void;
   toggleHelp: () => void;
-  toggleDock: () => void;
-  selectPiece: (pieceId: string | null) => void;
-  setParam: (key: string, value: ParamValue) => void;
-  place: () => void;
-  removeLast: () => void;
-  undo: () => void;
-  redo: () => void;
-  goToTrackEnd: () => void;
-  showMarker: (index: number) => void;
-  startRide: () => void;
-  toggleRideCamera: () => void;
+  setMultiplier: (value: number) => void;
+  nudgeMultiplier: (direction: 1 | -1) => void;
+  togglePause: () => void;
   toggleMute: () => void;
+  loadStarter: (id: string) => void;
   dispose: () => void;
 }
-
-function paletteEntries(): PaletteEntry[] {
-  return listPieces().map((def) => ({
-    id: def.id,
-    label: def.label,
-    category: def.category,
-    description: def.description,
-    params: Object.entries(def.params).map(([key, param]) => ({
-      key,
-      label: param.label,
-      options: param.options.map((value) => ({
-        value,
-        label: param.format ? param.format(value) : String(value),
-      })),
-    })),
-  }));
-}
-
-const DEFAULT_THEME = 'haunted-hollow';
 
 declare global {
   interface Window {
@@ -60,15 +35,35 @@ declare global {
   }
 }
 
+function applyAccent(accent: { accent: string; accentSoft: string; accentText: string }): void {
+  const root = document.documentElement.style;
+  root.setProperty('--accent', accent.accent);
+  root.setProperty('--accent-soft', accent.accentSoft);
+  root.setProperty('--accent-text', accent.accentText);
+}
+
 /** Boots the engine on the canvas and wires its events into the rune state. */
 export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
-  const theme = getTheme(DEFAULT_THEME);
+  const theme = getTheme(DEFAULT_THEME_ID);
+  applyAccent(theme.ui);
   ui.theme = { id: theme.id, name: theme.name, tagline: theme.tagline };
   ui.phase = 'loading';
 
-  const game = await Game.create(canvas, theme, (progress) => {
+  const starter = getStarter(DEFAULT_STARTER_ID);
+  if (!starter) throw new Error('Missing starter track');
+  const doc = loadSavedTrack() ?? starter.doc;
+  const prefs = loadPrefs();
+
+  const game = await Game.create(canvas, theme, doc, (progress) => {
     ui.progress = progress;
   });
+  if (prefs.multiplier !== undefined) game.ride.setMultiplier(prefs.multiplier);
+  if (prefs.muted) game.audio.setMuted(true);
+  ui.track = game.summary();
+
+  const persistPrefs = (): void => {
+    savePrefs({ multiplier: game.ride.multiplier, muted: game.audio.muted });
+  };
 
   const unsubscribe = [
     game.events.on('performance', ({ fps, scale }) => {
@@ -90,44 +85,26 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     game.events.on('toast', (text) => {
       ui.toast = { text, id: ui.toast.id + 1 };
     }),
-    game.build.events.on('track', (summary) => {
-      build.track = summary;
+    game.events.on('track', (summary) => {
+      ui.track = summary;
     }),
-    game.build.events.on('selection', (selection) => {
-      build.selectedId = selection.pieceId;
-      build.params = selection.params;
-      build.canPlace = selection.canPlace;
-      build.reason = selection.reason ?? '';
-    }),
-    game.build.events.on('history', (history) => {
-      build.canUndo = history.canUndo;
-      build.canRedo = history.canRedo;
-    }),
-    game.build.events.on('validation', (result) => {
-      build.validation = {
-        ok: result.ok,
-        markers: result.markers.map((m) => ({
-          kind: m.kind,
-          severity: m.severity,
-          reason: m.reason,
-        })),
-        stats: result.stats,
-      };
+    game.events.on('reducedMotion', (reduced) => {
+      ui.reducedMotion = reduced;
     }),
     game.ride.events.on('status', (status) => {
-      ride.phase = status.phase;
       ride.speed = status.speed * 3.6;
-      ride.gVertical = status.gVertical;
-      ride.gLateral = status.gLateral;
+      ride.baseSpeed = status.baseSpeed * 3.6;
+      ride.multiplier = status.multiplier;
+      ride.boost = status.boost;
+      ride.paused = status.paused;
+      ride.progress = status.progress;
+      ride.laps = status.laps;
       ride.time = status.time;
-      ride.lap = status.lap;
-      ride.camera = status.camera;
-      ride.onChain = status.onChain;
       ride.muted = status.muted;
     }),
   ];
-  build.palette = paletteEntries();
-  game.build.publishAll();
+  ride.multiplier = game.ride.multiplier;
+  ride.muted = game.audio.muted;
 
   const toggleHelp = (): void => {
     ui.helpOpen = !ui.helpOpen;
@@ -147,11 +124,10 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   game.keys.bind({
     scope: 'global',
     combo: 'Escape',
-    label: 'Close the shortcuts panel, or drop the piece selection',
+    label: 'Close the shortcuts panel, or leave the ride',
     handler: () => {
       if (ui.helpOpen) ui.helpOpen = false;
-      else if (game.mode === 'ride') game.requestMode('build');
-      else game.build.select(null);
+      else if (game.mode === 'ride') game.requestMode('edit');
     },
   });
 
@@ -163,9 +139,11 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     presets: game.presets,
     bindings: game.bindings,
     isMac: /Mac|iPhone|iPad/i.test(navigator.userAgent),
+    starters: STARTERS.map(({ id, name, tagline }) => ({ id, name, tagline })),
     setCameraMode: (mode) => game.setCameraMode(mode),
     toggleCamera: () => game.toggleCamera(),
     flyTo: (id) => game.flyTo(id),
+    frameTrack: () => game.frameTrack(true),
     requestMode: (mode) => game.requestMode(mode),
     takePhoto: () => {
       game.takePhoto().catch((error: unknown) => {
@@ -174,25 +152,24 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       });
     },
     toggleHelp,
-    toggleDock: () => {
-      ui.dockOpen = !ui.dockOpen;
+    setMultiplier: (value) => {
+      game.ride.setMultiplier(value);
+      persistPrefs();
     },
-    selectPiece: (pieceId) => game.build.select(pieceId),
-    setParam: (key, value) => game.build.setParam(key, value),
-    place: () => game.placePiece(),
-    removeLast: () => {
-      if (!game.build.removeLast()) game.toast('Nothing to remove');
+    nudgeMultiplier: (direction) => {
+      game.ride.nudgeMultiplier(direction);
+      persistPrefs();
     },
-    undo: () => game.build.undo(),
-    redo: () => game.build.redo(),
-    goToTrackEnd: () => game.flyToTrackEnd(),
-    showMarker: (index) => game.showMarker(index),
-    startRide: () => game.ride.start(),
-    toggleRideCamera: () => {
-      game.ride.toggleCamera();
+    togglePause: () => {
+      game.ride.togglePause();
     },
     toggleMute: () => {
       game.ride.toggleMute();
+      persistPrefs();
+    },
+    loadStarter: (id) => {
+      const found = getStarter(id);
+      if (found) game.loadDoc(found.doc);
     },
     dispose: () => {
       for (const off of unsubscribe) off();

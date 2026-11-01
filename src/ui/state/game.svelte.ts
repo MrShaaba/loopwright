@@ -1,5 +1,5 @@
 import type { CameraMode } from '../../engine/camera/CameraRig';
-import type { GameMode, LoadProgress } from '../../engine/Game';
+import type { GameMode, LoadProgress, TrackSummary } from '../../engine/Game';
 
 export interface UiState {
   phase: 'loading' | 'ready' | 'error';
@@ -10,8 +10,9 @@ export interface UiState {
   fps: number;
   renderScale: number;
   theme: { id: string; name: string; tagline: string };
+  track: TrackSummary;
   helpOpen: boolean;
-  dockOpen: boolean;
+  reducedMotion: boolean;
   toast: { text: string; id: number };
 }
 
@@ -20,12 +21,13 @@ export const ui: UiState = $state({
   phase: 'loading',
   progress: { step: 'Starting', fraction: 0 },
   error: '',
-  mode: 'build',
+  mode: 'edit',
   cameraMode: 'orbit',
   fps: 0,
   renderScale: 1,
   theme: { id: '', name: '', tagline: '' },
+  track: { name: '', length: 0, sections: 0 },
   helpOpen: false,
-  dockOpen: typeof window === 'undefined' ? true : window.innerWidth > 900,
+  reducedMotion: false,
   toast: { text: '', id: 0 },
 });

@@ -160,3 +160,29 @@ export function createMoonTexture(
     px.b = tint.b * shade;
   });
 }
+
+/** A glowing ball skin: a bright dotted lattice on a dimmer base so the roll reads. */
+export function createBallTexture(
+  scene: Scene,
+  name: string,
+  size: number,
+  color: Color3,
+): DynamicTexture {
+  const cells = 8;
+  const texture = paint(scene, name, size, true, (x, y, px) => {
+    const u = (x / size) * cells;
+    const v = (y / size) * cells;
+    const cu = u - Math.floor(u) - 0.5;
+    const cv = v - Math.floor(v) - 0.5;
+    const d = Math.hypot(cu, cv);
+    const dot = smoothstep(0.34, 0.2, d);
+    const band = smoothstep(0.06, 0.02, Math.abs(cv)) * 0.35;
+    const f = 0.28 + 1.1 * Math.max(dot, band);
+    px.r = color.r * f;
+    px.g = color.g * f;
+    px.b = color.b * f;
+  });
+  texture.wrapU = Texture.WRAP_ADDRESSMODE;
+  texture.wrapV = Texture.WRAP_ADDRESSMODE;
+  return texture;
+}

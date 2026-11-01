@@ -2,7 +2,7 @@
   "name": "loopwright",
   "version": "0.1.0",
   "private": true,
-  "description": "Build a themed roller coaster in 3D, then ride it at night.",
+  "description": "Ride a glowing ball through a glowing tube at the speed you choose.",
   "type": "module",
   "license": "MIT",
   "scripts": {

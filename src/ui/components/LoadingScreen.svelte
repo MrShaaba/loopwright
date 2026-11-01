@@ -6,9 +6,9 @@
 <div class="loading" out:fade={{ duration: 700 }}>
   <div class="moon" aria-hidden="true"></div>
   <h1 class="wordmark">Loopwright</h1>
-  <p class="tagline">Build a coaster. Ride it at night.</p>
+  <p class="tagline">A glowing ball. A glass tube. Your speed.</p>
   {#if ui.phase === 'error'}
-    <p class="error">Something went wrong while opening the park.</p>
+    <p class="error">Something went wrong while opening the ride.</p>
     <p class="detail">{ui.error}</p>
     <button class="button" onclick={() => location.reload()}>Try again</button>
   {:else}
@@ -44,10 +44,10 @@
     width: 72px;
     height: 72px;
     border-radius: 50%;
-    background: radial-gradient(circle at 40% 38%, #fff8e6, #e5dcc0 60%, #c8bf9f 100%);
+    background: radial-gradient(circle at 40% 38%, #fff4d6, #ffd27a 60%, #d9a447 100%);
     box-shadow:
-      0 0 24px 6px rgba(223, 230, 255, 0.35),
-      0 0 90px 30px rgba(140, 150, 220, 0.18);
+      0 0 24px 6px rgba(255, 210, 122, 0.35),
+      0 0 90px 30px rgba(111, 195, 255, 0.18);
     margin-bottom: 18px;
     animation: breathe 3.2s ease-in-out infinite;
   }

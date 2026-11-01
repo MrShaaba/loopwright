@@ -1,31 +1,37 @@
 import type { AudioEngine } from '../audio/AudioEngine';
-import type { RideCameraMode, RideCameras } from '../camera/RideCameras';
+import type { RideCamera } from '../camera/RideCamera';
 import { Emitter } from '../events';
-import type { TrackModel } from '../track/TrackModel';
-import type { Train } from './Train';
+import type { CompiledTrack } from '../track/Track';
+import type { TubeView } from '../tube/TubeView';
+import { clamp } from '../util/math';
+import type { Ball } from './Ball';
 import {
+  BOOST_FACTOR,
   createPhysicsTrack,
   createRideState,
   createSample,
-  dispatchRide,
+  MULTIPLIER_MAX,
+  MULTIPLIER_MIN,
+  MULTIPLIER_STEP,
   resetRide,
   sampleTrackToRef,
   stepRide,
   type PhysicsTrack,
-  type RidePhase,
   type RideState,
-} from './TrainPhysics';
+} from './BallPhysics';
 
 export interface RideStatus {
-  phase: RidePhase;
-  /** m/s */
+  /** Effective speed, m/s, multiplier and boost included. */
   speed: number;
-  gVertical: number;
-  gLateral: number;
+  /** Speed the physics alone would give, m/s. */
+  baseSpeed: number;
+  multiplier: number;
+  boost: boolean;
+  paused: boolean;
+  /** 0 at the start line, 1 a full lap later. */
+  progress: number;
+  laps: number;
   time: number;
-  lap: number;
-  camera: RideCameraMode;
-  onChain: boolean;
   muted: boolean;
 }
 
@@ -34,106 +40,159 @@ export interface RideEvents {
   active: boolean;
 }
 
-const STATUS_INTERVAL = 1 / 15;
+const STATUS_INTERVAL = 1 / 20;
+const BOOST_TAU = 0.22;
 
-/** Runs the train along the track, drives the ride cameras and the audio, and reports status. */
+/** Runs the ball along the track, drives the camera, the tube effects and the audio. */
 export class RideController {
   readonly events = new Emitter<RideEvents>();
+  readonly state: RideState = createRideState();
+  multiplier = 1;
+  paused = false;
+  /** True while reduced motion is requested; the camera and tube read it every frame. */
+  reducedMotion = false;
   private track: PhysicsTrack;
-  private readonly state: RideState;
   private readonly sample = createSample();
+  private boostHeld = false;
+  private boost = 1;
   private active = false;
   private statusTimer = 0;
+  private lastTravelled = 0;
 
   constructor(
-    model: TrackModel,
-    readonly train: Train,
-    readonly cameras: RideCameras,
+    compiled: CompiledTrack,
+    readonly ball: Ball,
+    readonly camera: RideCamera,
     readonly audio: AudioEngine,
+    readonly tube: TubeView,
   ) {
-    this.track = createPhysicsTrack(model.frames, model.closure.closed);
-    this.state = createRideState(this.track);
-    this.train.place(this.track, this.state.s);
+    this.track = createPhysicsTrack(compiled.frames);
+    this.placeBall();
   }
 
   get isActive(): boolean {
     return this.active;
   }
 
-  /** Rebuilds the physics track after the layout changes and parks the train in the station. */
-  syncTrack(model: TrackModel): void {
-    this.track = createPhysicsTrack(model.frames, model.closure.closed);
-    resetRide(this.state, this.track);
-    this.train.place(this.track, this.state.s);
+  get effectiveMultiplier(): number {
+    return this.multiplier * this.boost;
+  }
+
+  /** Effective speed in m/s. */
+  get speed(): number {
+    return this.paused ? 0 : this.state.v * this.effectiveMultiplier;
+  }
+
+  /** Rebuilds the physics track after the layout changes and puts the ball on the start line. */
+  syncTrack(compiled: CompiledTrack): void {
+    const previous = this.track.length > 0 ? this.state.s / this.track.length : 0;
+    this.track = createPhysicsTrack(compiled.frames);
+    if (this.active) {
+      // Keep the ride going at the same fraction of the loop while the track reshapes.
+      this.state.s = clamp(previous, 0, 0.9999) * this.track.length;
+    } else {
+      resetRide(this.state);
+    }
+    this.lastTravelled = this.state.travelled;
+    this.placeBall();
   }
 
   enter(): void {
     this.active = true;
-    resetRide(this.state, this.track);
-    this.train.place(this.track, this.state.s);
-    sampleTrackToRef(this.track, this.state.s, this.sample);
-    this.cameras.activate('seat', this.sample);
+    this.paused = false;
+    resetRide(this.state);
+    this.lastTravelled = 0;
+    this.placeBall();
+    this.camera.activate(this.track, this.state.s);
+    this.audio.start();
     this.events.emit('active', true);
-    this.events.emit('status', this.status());
+    this.emitStatus();
   }
 
   exit(): void {
     this.active = false;
-    resetRide(this.state, this.track);
-    this.train.place(this.track, this.state.s);
-    this.cameras.deactivate();
+    this.paused = false;
+    this.boostHeld = false;
+    this.boost = 1;
+    resetRide(this.state);
+    this.lastTravelled = 0;
+    this.placeBall();
+    this.camera.deactivate();
     this.audio.silence();
     this.events.emit('active', false);
-    this.events.emit('status', this.status());
+    this.emitStatus();
   }
 
-  /** Dispatches the train. Call from a user gesture so the audio context can start. */
-  start(): void {
-    if (!this.active) return;
-    this.audio.start();
-    dispatchRide(this.state, this.track);
-    this.events.emit('status', this.status());
+  setMultiplier(value: number): void {
+    this.multiplier = clamp(Math.round(value / 0.05) * 0.05, MULTIPLIER_MIN, MULTIPLIER_MAX);
+    this.emitStatus();
   }
 
-  toggleCamera(): RideCameraMode {
-    sampleTrackToRef(this.track, this.state.s, this.sample);
-    const mode = this.cameras.toggle(this.sample);
-    this.events.emit('status', this.status());
-    return mode;
+  nudgeMultiplier(direction: 1 | -1): void {
+    this.setMultiplier(this.multiplier + direction * MULTIPLIER_STEP);
+  }
+
+  setBoost(held: boolean): void {
+    if (this.boostHeld === held) return;
+    this.boostHeld = held;
+    this.emitStatus();
+  }
+
+  togglePause(): boolean {
+    if (!this.active) return false;
+    this.paused = !this.paused;
+    if (this.paused) this.audio.silence();
+    this.emitStatus();
+    return this.paused;
   }
 
   toggleMute(): boolean {
     this.audio.setMuted(!this.audio.muted);
-    this.events.emit('status', this.status());
+    this.emitStatus();
     return this.audio.muted;
   }
 
   update(dt: number): void {
     if (!this.active) return;
-    stepRide(this.state, this.track, dt);
-    this.train.place(this.track, this.state.s);
+    const target = this.boostHeld ? BOOST_FACTOR : 1;
+    this.boost += (target - this.boost) * (1 - Math.exp(-dt / BOOST_TAU));
+    if (!this.paused) {
+      stepRide(this.state, this.track, dt, this.effectiveMultiplier);
+      this.audio.update(this.speed);
+    }
+    const rolled = this.state.travelled - this.lastTravelled;
+    this.lastTravelled = this.state.travelled;
     sampleTrackToRef(this.track, this.state.s, this.sample);
-    this.cameras.update(dt, this.sample, this.state.v, this.state.gVertical);
-    this.audio.update(this.state.v, this.state.onChain);
+    this.ball.place(this.sample, rolled);
+    this.camera.update(dt, this.track, this.state.s, this.speed, this.reducedMotion);
     this.statusTimer += dt;
     if (this.statusTimer >= STATUS_INTERVAL) {
       this.statusTimer = 0;
-      this.events.emit('status', this.status());
+      this.emitStatus();
     }
   }
 
   status(): RideStatus {
     return {
-      phase: this.state.phase,
-      speed: this.state.v,
-      gVertical: this.state.gVertical,
-      gLateral: this.state.gLateral,
+      speed: this.speed,
+      baseSpeed: this.state.v,
+      multiplier: this.multiplier,
+      boost: this.boostHeld,
+      paused: this.paused,
+      progress: this.track.length > 0 ? this.state.s / this.track.length : 0,
+      laps: this.state.laps,
       time: this.state.time,
-      lap: this.state.lap,
-      camera: this.cameras.mode,
-      onChain: this.state.onChain,
       muted: this.audio.muted,
     };
+  }
+
+  private placeBall(): void {
+    sampleTrackToRef(this.track, this.state.s, this.sample);
+    this.ball.place(this.sample, 0);
+  }
+
+  private emitStatus(): void {
+    this.events.emit('status', this.status());
   }
 
   dispose(): void {

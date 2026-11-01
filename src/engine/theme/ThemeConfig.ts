@@ -1,6 +1,4 @@
 import type { Color3 } from '@babylonjs/core/Maths/math.color';
-import type { AssetRef } from '../assets/AssetRef';
-import type { ParkFile } from '../save/schema';
 
 export interface MoonSpec {
   azimuthDeg: number;
@@ -12,13 +10,15 @@ export interface MoonSpec {
 }
 
 export interface SkyConfig {
-  /** Colour at the horizon line; should match the fog colour so terrain fades into the sky. */
+  /** Colour at the horizon line; should match the fog colour so the floor fades into the sky. */
   horizon: Color3;
   /** Colour of the band just above the horizon. */
   band: Color3;
   zenith: Color3;
   /** Fraction of sky cells that hold a star, 0 to 1. */
   starDensity: number;
+  /** Strength of the faint galactic band, 0 to 1. */
+  bandStrength: number;
   moons: MoonSpec[];
 }
 
@@ -26,7 +26,6 @@ export interface FogConfig {
   color: Color3;
   /** Exponential-squared fog density per metre. */
   density: number;
-  mist: { color: Color3; alpha: number; count: number } | null;
 }
 
 export interface LightingConfig {
@@ -46,64 +45,39 @@ export interface LightingConfig {
   vignette: number;
 }
 
-export interface TerrainConfig {
-  /** Side length of the square park in metres. */
-  size: number;
-  seed: number;
-  subdivisions: number;
-  hillHeight: number;
-  /** Metres per noise cell; larger values give broader hills. */
-  hillScale: number;
-  /** Radius of the flat central build area. */
-  plateauRadius: number;
-  /** Extra height rising towards the park edge so the world feels enclosed. */
-  rimHeight: number;
-  palette: { low: Color3; high: Color3; steep: Color3; path: Color3 };
-  boulders: { count: number; color: Color3 };
+export interface FloorConfig {
+  color: Color3;
+  /** Grid line colour and spacing in metres; null draws a plain floor. */
+  grid: { color: Color3; spacing: number; strength: number } | null;
 }
 
-export interface TrackStyle {
-  rail: Color3;
-  spine: Color3;
+export interface TubeStyle {
+  /** Glass body tint. */
+  tint: Color3;
+  /** Fresnel edge glow and the rings. */
+  edge: Color3;
+  /** Speed streak colour. */
+  streak: Color3;
+  /** Overall brightness multiplier for the tube shader. */
+  intensity: number;
   support: Color3;
-  /** Emissive strength on the rails so the track never vanishes into the dark. */
-  railGlow: number;
+  tunnel: Color3;
 }
 
-export interface TrainStyle {
-  body: Color3;
-  trim: Color3;
-  seat: Color3;
-  lamp: Color3;
+export interface BallStyle {
+  color: Color3;
+  /** Point light intensity cast by the ball onto opaque surfaces. */
+  light: number;
 }
 
-export interface PropDef {
-  id: string;
-  label: string;
-  asset: AssetRef;
-  minScale: number;
-  maxScale: number;
-  idle: 'none' | 'sway' | 'flicker' | 'bob';
+export interface UiAccent {
+  /** CSS colours. */
+  accent: string;
+  accentSoft: string;
+  accentText: string;
 }
 
-export interface ScareDef {
-  id: string;
-  label: string;
-  asset: AssetRef;
-  sound: AssetRef;
-  behaviour: 'burst' | 'drift' | 'loom' | 'chase';
-  /** Metres from the trigger at which the scare becomes active. */
-  range: number;
-}
-
-export interface AudioConfig {
-  ambient: AssetRef;
-  music: AssetRef;
-  wind: { minPitch: number; maxPitch: number; gain: number };
-  rumble: { minPitch: number; maxPitch: number; gain: number };
-}
-
-/** One of these per theme. Switching theme re-skins the same track. */
+/** One of these per theme. Switching theme re-skins the same track and never changes the ride. */
 export interface ThemeConfig {
   id: string;
   name: string;
@@ -111,11 +85,8 @@ export interface ThemeConfig {
   sky: SkyConfig;
   fog: FogConfig;
   lighting: LightingConfig;
-  terrain: TerrainConfig;
-  track: TrackStyle;
-  train: TrainStyle;
-  props: PropDef[];
-  scares: ScareDef[];
-  audio: AudioConfig;
-  starterPark: ParkFile;
+  floor: FloorConfig;
+  tube: TubeStyle;
+  ball: BallStyle;
+  ui: UiAccent;
 }

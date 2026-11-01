@@ -1,4 +1,4 @@
-export type KeyMode = 'build' | 'ride';
+export type KeyMode = 'edit' | 'ride';
 export type KeyScope = KeyMode | 'global';
 
 /** The subset of KeyboardEvent the registry reads, so tests can feed plain objects. */
@@ -79,7 +79,7 @@ function isTextTarget(target: EventTarget | null): boolean {
  * so a binding only exists in one place.
  */
 export class KeyRegistry {
-  mode: KeyMode = 'build';
+  mode: KeyMode = 'edit';
   private readonly bindings: (KeyBinding & { parsed: ParsedCombo })[] = [];
 
   bind(binding: KeyBinding): () => void {

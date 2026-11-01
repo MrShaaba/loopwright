@@ -1,33 +1,38 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
-import { PointerEventTypes } from '@babylonjs/core/Events/pointerEvents';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { CreateScreenshotAsync } from '@babylonjs/core/Misc/screenshotTools';
 import { Scene } from '@babylonjs/core/scene';
 import { AudioEngine } from './audio/AudioEngine';
-import { BuildController } from './build/BuildController';
 import { CameraRig, type CameraMode, type CameraPreset } from './camera/CameraRig';
-import { RideCameras } from './camera/RideCameras';
+import { RideCamera } from './camera/RideCamera';
 import { Emitter } from './events';
 import { KeyRegistry, type KeyBinding } from './input/Keys';
+import { Ball } from './ride/Ball';
+import { RideController } from './ride/RideController';
+import { createTrackDoc, type TrackDoc } from './save/schema';
+import { saveTrack } from './save/storage';
 import { Atmosphere } from './scene/Atmosphere';
+import { Floor } from './scene/Floor';
 import { Lighting } from './scene/Lighting';
 import { PerformanceGovernor, type PerformanceSample } from './scene/Performance';
 import { Sky } from './scene/Sky';
-import { Terrain } from './scene/Terrain';
-import { MarkerView } from './ride/MarkerView';
-import { RideController } from './ride/RideController';
-import { Train } from './ride/Train';
 import type { ThemeConfig } from './theme/ThemeConfig';
-import { GhostView } from './track/mesh/GhostView';
-import { TrackView } from './track/mesh/TrackView';
-import { TrackModel } from './track/TrackModel';
+import { compileTrack, type CompiledTrack, type SectionSpec } from './track/Track';
+import { TubeView } from './tube/TubeView';
 import { DEG } from './util/math';
 
-export type GameMode = 'build' | 'ride';
+export type GameMode = 'edit' | 'ride';
 
 export interface LoadProgress {
   step: string;
   fraction: number;
+}
+
+export interface TrackSummary {
+  name: string;
+  /** Metres around the loop. */
+  length: number;
+  sections: number;
 }
 
 export interface GameEvents {
@@ -35,6 +40,8 @@ export interface GameEvents {
   cameraMode: CameraMode;
   mode: GameMode;
   toast: string;
+  track: TrackSummary;
+  reducedMotion: boolean;
 }
 
 interface GameParts {
@@ -42,17 +49,18 @@ interface GameParts {
   engine: Engine;
   scene: Scene;
   theme: ThemeConfig;
-  terrain: Terrain;
   sky: Sky;
   lighting: Lighting;
   cameras: CameraRig;
+  rideCamera: RideCamera;
   atmosphere: Atmosphere;
-  track: TrackModel;
-  build: BuildController;
-  trackView: TrackView;
-  ghostView: GhostView;
+  floor: Floor;
+  tube: TubeView;
+  ball: Ball;
+  audio: AudioEngine;
   ride: RideController;
-  markers: MarkerView;
+  doc: TrackDoc;
+  compiled: CompiledTrack;
 }
 
 function nextFrame(): Promise<void> {
@@ -61,38 +69,7 @@ function nextFrame(): Promise<void> {
   });
 }
 
-function buildPresets(theme: ThemeConfig): CameraPreset[] {
-  // ArcRotateCamera sits at target + radius * (cos a sin b, cos b, sin a sin b),
-  // so this alpha puts the camera opposite the moon, looking towards it.
-  const az = theme.lighting.key.azimuthDeg * DEG;
-  const towardMoon = Math.atan2(-Math.sin(az), -Math.cos(az));
-  return [
-    {
-      id: 'overview',
-      label: 'Overview',
-      alpha: towardMoon + 0.7,
-      beta: 1.3,
-      radius: 230,
-      target: new Vector3(0, 2, 0),
-    },
-    {
-      id: 'station',
-      label: 'Station',
-      alpha: towardMoon + 0.35,
-      beta: 1.24,
-      radius: 55,
-      target: new Vector3(0, 1, 0),
-    },
-    {
-      id: 'moonrise',
-      label: 'Moonrise',
-      alpha: towardMoon,
-      beta: 1.93,
-      radius: 95,
-      target: new Vector3(0, 40, 0),
-    },
-  ];
-}
+const FLAT = (): number => 0;
 
 /**
  * Owns the Babylon engine and scene. Framework-free: the UI drives it through
@@ -104,19 +81,21 @@ export class Game {
   readonly engine: Engine;
   readonly scene: Scene;
   readonly theme: ThemeConfig;
-  readonly terrain: Terrain;
   readonly sky: Sky;
   readonly lighting: Lighting;
   readonly cameras: CameraRig;
+  readonly rideCamera: RideCamera;
   readonly atmosphere: Atmosphere;
-  readonly track: TrackModel;
-  readonly build: BuildController;
-  readonly trackView: TrackView;
-  readonly ghostView: GhostView;
+  readonly floor: Floor;
+  readonly tube: TubeView;
+  readonly ball: Ball;
+  readonly audio: AudioEngine;
   readonly ride: RideController;
-  readonly markers: MarkerView;
   readonly performance: PerformanceGovernor;
-  mode: GameMode = 'build';
+  mode: GameMode = 'edit';
+  doc: TrackDoc;
+  compiled: CompiledTrack;
+  reducedMotion = false;
   private readonly canvas: HTMLCanvasElement;
   private readonly disposers: (() => void)[] = [];
   private disposed = false;
@@ -126,39 +105,30 @@ export class Game {
     this.engine = parts.engine;
     this.scene = parts.scene;
     this.theme = parts.theme;
-    this.terrain = parts.terrain;
     this.sky = parts.sky;
     this.lighting = parts.lighting;
     this.cameras = parts.cameras;
+    this.rideCamera = parts.rideCamera;
     this.atmosphere = parts.atmosphere;
-    this.track = parts.track;
-    this.build = parts.build;
-    this.trackView = parts.trackView;
-    this.ghostView = parts.ghostView;
+    this.floor = parts.floor;
+    this.tube = parts.tube;
+    this.ball = parts.ball;
+    this.audio = parts.audio;
     this.ride = parts.ride;
-    this.markers = parts.markers;
+    this.doc = parts.doc;
+    this.compiled = parts.compiled;
     this.performance = new PerformanceGovernor(this.engine, (sample) =>
       this.events.emit('performance', sample),
     );
     this.cameras.onModeChange = (mode) => this.events.emit('cameraMode', mode);
-    this.build.events.on('track', () => {
-      this.trackView.rebuild(this.track.frames, this.track.closure.closed, this.track.exitPose);
-      this.ride.syncTrack(this.track);
-    });
-    this.build.events.on('validation', (result) => {
-      this.markers.show(result.markers);
-    });
-    this.markers.show(this.build.validation.markers);
-    this.build.events.on('ghost', (ghost) => {
-      if (ghost) this.ghostView.show(ghost.frames, ghost.valid);
-      else this.ghostView.hide();
-    });
+    this.keys.mode = 'edit';
     this.registerKeys();
   }
 
   static async create(
     canvas: HTMLCanvasElement,
     theme: ThemeConfig,
+    doc: TrackDoc,
     onProgress: (progress: LoadProgress) => void,
   ): Promise<Game> {
     const report = async (step: string, fraction: number): Promise<void> => {
@@ -173,81 +143,77 @@ export class Game {
       { powerPreference: 'high-performance', preserveDrawingBuffer: true, stencil: true },
       true,
     );
-    // Render at most 1.5x CSS pixels; the governor adapts from there.
     engine.setHardwareScalingLevel(1 / Math.min(window.devicePixelRatio, 1.5));
     const scene = new Scene(engine);
     scene.skipPointerMovePicking = true;
 
-    await report('Shaping the valley', 0.2);
-    const terrain = new Terrain(scene, theme.terrain);
-
-    await report('Raising the moon', 0.4);
+    await report('Painting the sky', 0.2);
     const sky = new Sky(scene, theme.sky);
-
-    await report('Lighting the night', 0.55);
     const lighting = new Lighting(scene, theme.lighting);
-    for (const caster of terrain.shadowCasters) lighting.addCaster(caster);
 
-    await report('Placing cameras', 0.65);
+    await report('Placing cameras', 0.35);
     const cameras = new CameraRig(scene, canvas, {
-      heightAt: (x, z) => terrain.heightAt(x, z),
-      presets: buildPresets(theme),
+      heightAt: FLAT,
+      presets: [
+        {
+          id: 'overview',
+          label: 'Overview',
+          alpha: -Math.PI / 2 - 0.6,
+          beta: 1.15,
+          radius: 160,
+          target: new Vector3(0, 6, 40),
+        },
+      ],
       initialPreset: 'overview',
     });
+    const rideCamera = new RideCamera(scene);
 
-    const rideCameras = new RideCameras(scene, (x, z) => terrain.heightAt(x, z));
-
-    await report('Rolling in the fog', 0.75);
+    await report('Rolling in the fog', 0.5);
     const atmosphere = new Atmosphere(scene, {
       fog: theme.fog,
       lighting: theme.lighting,
-      cameras: [...cameras.cameras, ...rideCameras.cameras],
-      halfSize: theme.terrain.size / 2,
-      seed: theme.terrain.seed,
-      heightAt: (x, z) => terrain.heightAt(x, z),
+      cameras: [...cameras.cameras, rideCamera.camera],
       glowExcluded: sky.glowExcluded,
     });
+    const floor = new Floor(scene, theme.floor, theme.fog, theme.ball);
 
-    await report('Laying the station', 0.82);
-    const track = new TrackModel(undefined, { heightAt: (x, z) => terrain.heightAt(x, z) });
-    const build = new BuildController(track);
-    const trackView = new TrackView(
-      scene,
-      theme.track,
-      lighting,
-      (x, z) => terrain.heightAt(x, z),
-      track.entry,
-    );
-    trackView.rebuild(track.frames, track.closure.closed, track.exitPose);
-    const ghostView = new GhostView(scene);
+    await report('Blowing the glass', 0.65);
+    const tube = new TubeView(scene, theme.tube, theme.fog);
+    const compiled = compileTrack(doc.sections);
+    tube.rebuild(compiled);
 
-    await report('Rolling out the train', 0.86);
-    const train = new Train(scene, theme.train, lighting);
-    const audio = new AudioEngine(theme.audio);
-    const ride = new RideController(track, train, rideCameras, audio);
-    const markers = new MarkerView(scene, (x, z) => terrain.heightAt(x, z));
+    await report('Lighting the ball', 0.8);
+    const ball = new Ball(scene, theme.ball);
+    // The ball fills a lot of the ride view; blooming it would wash out the whole frame.
+    atmosphere.glow.addExcludedMesh(ball.mesh);
+    atmosphere.glow.addExcludedMesh(ball.halo);
+    const audio = new AudioEngine();
+    const ride = new RideController(compiled, ball, rideCamera, audio, tube);
 
     await report('Compiling shaders', 0.9);
     await scene.whenReadyAsync();
-    await report('Opening the gates', 1);
+    await report('Ready', 1);
 
-    return new Game({
+    const game = new Game({
       canvas,
       engine,
       scene,
       theme,
-      terrain,
       sky,
       lighting,
       cameras,
+      rideCamera,
       atmosphere,
-      track,
-      build,
-      trackView,
-      ghostView,
+      floor,
+      tube,
+      ball,
+      audio,
       ride,
-      markers,
+      doc,
+      compiled,
     });
+    game.frameTrack(false);
+    return game;
   }
 
   /** Starts the render loop and input listeners. */
@@ -262,20 +228,38 @@ export class Game {
     this.disposers.push(() => window.removeEventListener('resize', onResize));
     this.disposers.push(this.keys.attach(window));
 
-    // A plain click (no drag) on the scene snaps the previewed piece on.
-    const tapObserver = this.scene.onPointerObservable.add((info) => {
-      if (info.type !== PointerEventTypes.POINTERTAP || info.event.button !== 0) return;
-      if (this.mode !== 'build' || this.cameras.mode !== 'orbit') return;
-      this.placePiece();
+    const onShift = (event: KeyboardEvent): void => {
+      if (event.key !== 'Shift') return;
+      this.ride.setBoost(event.type === 'keydown');
+    };
+    const onBlur = (): void => this.ride.setBoost(false);
+    window.addEventListener('keydown', onShift);
+    window.addEventListener('keyup', onShift);
+    window.addEventListener('blur', onBlur);
+    this.disposers.push(() => {
+      window.removeEventListener('keydown', onShift);
+      window.removeEventListener('keyup', onShift);
+      window.removeEventListener('blur', onBlur);
     });
-    this.disposers.push(() => this.scene.onPointerObservable.remove(tapObserver));
+
+    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const applyMotion = (): void => {
+      this.reducedMotion = motionQuery.matches;
+      this.ride.reducedMotion = motionQuery.matches;
+      this.events.emit('reducedMotion', motionQuery.matches);
+    };
+    applyMotion();
+    motionQuery.addEventListener('change', applyMotion);
+    this.disposers.push(() => motionQuery.removeEventListener('change', applyMotion));
 
     this.engine.runRenderLoop(() => {
       const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.1);
       this.sky.update(dt);
       if (this.mode === 'ride') this.ride.update(dt);
       else this.cameras.update(dt);
-      this.markers.update(dt);
+      this.tube.update(dt, this.ride.speed, this.reducedMotion);
+      this.tube.setBall(this.ball.position, this.ball.color);
+      this.floor.setBallPosition(this.ball.position);
       this.performance.update(dt);
       this.scene.render();
     });
@@ -287,6 +271,58 @@ export class Game {
 
   get presets(): readonly CameraPreset[] {
     return this.cameras.presets;
+  }
+
+  summary(): TrackSummary {
+    return {
+      name: this.doc.name,
+      length: this.compiled.length,
+      sections: this.doc.sections.length,
+    };
+  }
+
+  /** Replaces the sections, recompiles and reskins the tube. The ride keeps going if active. */
+  setSections(sections: SectionSpec[], name = this.doc.name): void {
+    this.doc = createTrackDoc(name, this.doc.theme, sections);
+    this.compiled = compileTrack(this.doc.sections);
+    this.tube.rebuild(this.compiled);
+    this.ride.syncTrack(this.compiled);
+    saveTrack(this.doc);
+    this.events.emit('track', this.summary());
+  }
+
+  loadDoc(doc: TrackDoc): void {
+    this.setSections(doc.sections, doc.name);
+    if (this.mode === 'edit') this.frameTrack(true);
+  }
+
+  /** Points the overview preset at the whole track and optionally flies there. */
+  frameTrack(fly: boolean): void {
+    const min = new Vector3(Infinity, Infinity, Infinity);
+    const max = new Vector3(-Infinity, -Infinity, -Infinity);
+    for (const frame of this.compiled.frames) {
+      min.minimizeInPlace(frame.position);
+      max.maximizeInPlace(frame.position);
+    }
+    if (!Number.isFinite(min.x)) return;
+    const centre = min.add(max).scale(0.5);
+    const extent = Math.max(max.x - min.x, max.z - min.z, (max.y - min.y) * 1.6, 30);
+    const preset: CameraPreset = {
+      id: 'overview',
+      label: 'Overview',
+      alpha: -Math.PI / 2 - 0.55,
+      beta: 62 * DEG,
+      radius: extent * 0.95 + 24,
+      target: centre,
+    };
+    this.cameras.setPreset(preset);
+    if (fly) this.cameras.flyTo('overview');
+    else {
+      this.cameras.orbit.alpha = preset.alpha;
+      this.cameras.orbit.beta = preset.beta;
+      this.cameras.orbit.radius = preset.radius;
+      this.cameras.orbit.target.copyFrom(preset.target);
+    }
   }
 
   setCameraMode(mode: CameraMode): void {
@@ -301,35 +337,13 @@ export class Game {
     this.cameras.flyTo(presetId);
   }
 
-  flyToTrackEnd(): void {
-    const end = this.track.exitPose.position;
-    this.cameras.flyToPoint(new Vector3(end.x, end.y + 1, end.z), 42);
-  }
-
-  /** Places the selected piece, or explains why it cannot be placed. */
-  placePiece(): void {
-    if (!this.build.selectedId) return;
-    if (this.build.place()) return;
-    const reason = this.build.selection().reason;
-    if (reason) this.toast(reason);
-  }
-
   requestMode(mode: GameMode): void {
     if (mode === this.mode) return;
     if (mode === 'ride') {
-      const problem = this.build.validation.markers.find((m) => m.severity === 'error');
-      if (problem) {
-        this.toast(problem.reason);
-        this.cameras.flyToPoint(problem.position, 45);
-        return;
-      }
-      this.build.select(null);
       this.cameras.suspend();
-      this.markers.setVisible(false);
       this.ride.enter();
     } else {
       this.ride.exit();
-      this.markers.setVisible(true);
       this.cameras.resume();
     }
     this.mode = mode;
@@ -337,11 +351,8 @@ export class Game {
     this.events.emit('mode', mode);
   }
 
-  /** Flies the build camera to a validation marker. */
-  showMarker(index: number): void {
-    const marker = this.build.validation.markers[index];
-    if (!marker) return;
-    this.cameras.flyToPoint(marker.position, 40);
+  toggleMode(): void {
+    this.requestMode(this.mode === 'ride' ? 'edit' : 'ride');
   }
 
   toast(text: string): void {
@@ -350,12 +361,8 @@ export class Game {
 
   /** Saves the current view as a PNG through the browser's download flow. */
   async takePhoto(): Promise<void> {
-    const data = await CreateScreenshotAsync(
-      this.engine,
-      this.cameras.active,
-      { precision: 1 },
-      'image/png',
-    );
+    const camera = this.mode === 'ride' ? this.rideCamera.camera : this.cameras.active;
+    const data = await CreateScreenshotAsync(this.engine, camera, { precision: 1 }, 'image/png');
     const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const link = document.createElement('a');
     link.href = data;
@@ -365,62 +372,49 @@ export class Game {
   }
 
   private registerKeys(): void {
+    for (const combo of ['Enter', 'Space']) {
+      this.keys.bind({
+        scope: 'edit',
+        combo,
+        label: 'Ride',
+        handler: () => this.requestMode('ride'),
+      });
+      this.keys.bind({
+        scope: 'ride',
+        combo,
+        label: 'Back to the editor',
+        handler: () => this.requestMode('edit'),
+      });
+    }
     this.keys.bind({
-      scope: 'build',
+      scope: 'edit',
       combo: 'KeyF',
       label: 'Switch between orbit and free-fly camera',
       handler: () => this.toggleCamera(),
     });
-    this.cameras.presets.forEach((preset, index) => {
-      this.keys.bind({
-        scope: 'build',
-        combo: `Digit${index + 1}`,
-        label: `Fly to ${preset.label}`,
-        handler: () => this.flyTo(preset.id),
-      });
-    });
     this.keys.bind({
-      scope: 'build',
-      combo: 'Digit4',
-      label: 'Fly to the track end',
-      handler: () => this.flyToTrackEnd(),
-    });
-    this.keys.bind({
-      scope: 'build',
-      combo: 'Enter',
-      label: 'Place the previewed piece',
-      handler: () => this.placePiece(),
-    });
-    for (const combo of ['Backspace', 'Delete']) {
-      this.keys.bind({
-        scope: 'build',
-        combo,
-        label: 'Remove the last piece',
-        handler: () => {
-          if (!this.build.removeLast()) this.toast('Nothing to remove');
-        },
-      });
-    }
-    this.keys.bind({
-      scope: 'build',
-      combo: 'mod+KeyZ',
-      label: 'Undo',
-      handler: () => this.build.undo(),
-    });
-    for (const combo of ['shift+mod+KeyZ', 'mod+KeyY']) {
-      this.keys.bind({ scope: 'build', combo, label: 'Redo', handler: () => this.build.redo() });
-    }
-    this.keys.bind({
-      scope: 'ride',
-      combo: 'Space',
-      label: 'Dispatch the train',
-      handler: () => this.ride.start(),
+      scope: 'edit',
+      combo: 'Digit1',
+      label: 'Frame the whole track',
+      handler: () => this.frameTrack(true),
     });
     this.keys.bind({
       scope: 'ride',
-      combo: 'KeyC',
-      label: 'Switch between seat and chase camera',
-      handler: () => this.ride.toggleCamera(),
+      combo: 'ArrowUp',
+      label: 'Speed multiplier up',
+      handler: () => this.ride.nudgeMultiplier(1),
+    });
+    this.keys.bind({
+      scope: 'ride',
+      combo: 'ArrowDown',
+      label: 'Speed multiplier down',
+      handler: () => this.ride.nudgeMultiplier(-1),
+    });
+    this.keys.bind({
+      scope: 'ride',
+      combo: 'KeyP',
+      label: 'Pause and resume',
+      handler: () => this.ride.togglePause(),
     });
     this.keys.bind({
       scope: 'global',
@@ -430,8 +424,8 @@ export class Game {
     });
     this.keys.bind({
       scope: 'global',
-      combo: 'KeyP',
-      label: 'Save a photo of the view',
+      combo: 'KeyC',
+      label: 'Capture a photo',
       handler: () => {
         this.takePhoto().catch((error: unknown) => {
           console.error(error);
@@ -447,18 +441,15 @@ export class Game {
     this.engine.stopRenderLoop();
     for (const dispose of this.disposers) dispose();
     this.ride.dispose();
-    this.ride.audio.dispose();
-    this.ride.cameras.dispose();
-    this.ride.train.dispose();
-    this.markers.dispose();
-    this.ghostView.dispose();
-    this.trackView.dispose();
-    this.build.dispose();
+    this.audio.dispose();
+    this.rideCamera.dispose();
+    this.ball.dispose();
+    this.tube.dispose();
+    this.floor.dispose();
     this.atmosphere.dispose();
     this.cameras.dispose();
     this.lighting.dispose();
     this.sky.dispose();
-    this.terrain.dispose();
     this.scene.dispose();
     this.engine.dispose();
     this.events.clear();

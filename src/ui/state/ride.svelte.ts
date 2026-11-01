@@ -1,27 +1,25 @@
-import type { RideCameraMode } from '../../engine/camera/RideCameras';
-import type { RidePhase } from '../../engine/ride/TrainPhysics';
-
 export interface RideUiState {
-  phase: RidePhase;
-  /** km/h */
+  /** km/h, multiplier and boost included. */
   speed: number;
-  gVertical: number;
-  gLateral: number;
+  /** km/h from physics alone. */
+  baseSpeed: number;
+  multiplier: number;
+  boost: boolean;
+  paused: boolean;
+  progress: number;
+  laps: number;
   time: number;
-  lap: number;
-  camera: RideCameraMode;
-  onChain: boolean;
   muted: boolean;
 }
 
 export const ride: RideUiState = $state({
-  phase: 'idle',
   speed: 0,
-  gVertical: 1,
-  gLateral: 0,
+  baseSpeed: 0,
+  multiplier: 1,
+  boost: false,
+  paused: false,
+  progress: 0,
+  laps: 0,
   time: 0,
-  lap: 0,
-  camera: 'seat',
-  onChain: false,
   muted: false,
 });

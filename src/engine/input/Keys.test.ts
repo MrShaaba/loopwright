@@ -32,7 +32,7 @@ describe('KeyRegistry', () => {
     const keys = new KeyRegistry();
     const hits: string[] = [];
     keys.bind({
-      scope: 'build',
+      scope: 'edit',
       combo: 'KeyR',
       label: 'Rotate',
       handler: () => hits.push('rotate'),
@@ -57,8 +57,8 @@ describe('KeyRegistry', () => {
     const keys = new KeyRegistry();
     let undo = 0;
     let rotate = 0;
-    keys.bind({ scope: 'build', combo: 'mod+KeyZ', label: 'Undo', handler: () => undo++ });
-    keys.bind({ scope: 'build', combo: 'KeyR', label: 'Rotate', handler: () => rotate++ });
+    keys.bind({ scope: 'edit', combo: 'mod+KeyZ', label: 'Undo', handler: () => undo++ });
+    keys.bind({ scope: 'edit', combo: 'KeyR', label: 'Rotate', handler: () => rotate++ });
 
     expect(keys.dispatch({ code: 'KeyZ', ctrlKey: true })).toBe(true);
     expect(keys.dispatch({ code: 'KeyZ', metaKey: true })).toBe(true);

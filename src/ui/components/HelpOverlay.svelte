@@ -7,13 +7,13 @@
 
   const groups: { scope: KeyScope; title: string }[] = [
     { scope: 'global', title: 'Anywhere' },
-    { scope: 'build', title: 'Build mode' },
+    { scope: 'edit', title: 'Editor' },
     { scope: 'ride', title: 'Ride mode' },
   ];
 
   const mouse = [
-    ['Drag', 'Orbit around the park'],
-    ['Right-drag', 'Pan across the ground'],
+    ['Drag', 'Orbit around the track'],
+    ['Right-drag', 'Pan across the floor'],
     ['Scroll', 'Zoom in and out'],
     ['Click in Fly mode', 'Capture the mouse to look around'],
   ];

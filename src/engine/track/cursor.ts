@@ -1,7 +1,7 @@
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { DEG } from '../util/math';
 import { clonePose, directionOf, horizontalForward, rightOf } from './pose';
-import type { PieceGeometry, PieceKey, Pose, SegmentFlags } from './types';
+import type { Pose, SectionGeometry, SectionKey, SegmentFlags } from './types';
 
 /** Metres between emitted keys. The spline resamples much finer. */
 const KEY_SPACING = 1;
@@ -13,13 +13,13 @@ export interface SegmentOptions {
 }
 
 /**
- * Walks a pose forward and records keys. Pieces are written as a few cursor calls,
- * so a new piece type is a short file and composite pieces are plain sequences.
+ * Walks a pose forward and records keys. Sections are written as a few cursor calls,
+ * so a new section type is a short file and composite sections are plain sequences.
  */
 export class Cursor {
   pose: Pose;
   length = 0;
-  private readonly keys: PieceKey[] = [];
+  private readonly keys: SectionKey[] = [];
   private readonly lengths: number[] = [];
 
   constructor(entry: Pose) {
@@ -112,9 +112,9 @@ export class Cursor {
   }
 
   /**
-   * Arbitrary shape in the entry's local basis (forward, up, right), for loops and
-   * corkscrews. `shape(u)` returns a local offset for u in [0, 1]; the exit pose is
-   * supplied explicitly so snapping stays exact.
+   * Arbitrary shape in the entry's local basis (forward, up, right), for loops, corkscrews,
+   * hills and spirals. `shape(u)` returns a local offset for u in [0, 1]; the exit pose is
+   * supplied explicitly so the next section starts exactly where this one ends.
    */
   custom(
     steps: number,
@@ -149,13 +149,50 @@ export class Cursor {
     return this;
   }
 
-  finish(): PieceGeometry {
-    const total = Math.max(this.length, 1e-9);
-    const keys = this.keys.map((key, i) => ({ ...key, t: (this.lengths[i] ?? 0) / total }));
+  /** Replaces every key's height with `height(h)`, where h is the horizontal distance so far. */
+  reshapeHeights(height: (h: number) => number): this {
+    let h = 0;
+    for (let i = 0; i < this.keys.length; i++) {
+      const key = this.keys[i];
+      const previous = this.keys[i - 1];
+      if (!key) continue;
+      if (previous) {
+        h += Math.hypot(key.position.x - previous.position.x, key.position.z - previous.position.z);
+      }
+      key.position.y = height(h);
+    }
+    const last = this.keys[this.keys.length - 1];
+    if (last) this.pose.position.y = last.position.y;
+    return this;
+  }
+
+  /** Horizontal distance covered so far. */
+  get horizontalLength(): number {
+    let h = 0;
+    for (let i = 1; i < this.keys.length; i++) {
+      const a = this.keys[i - 1];
+      const b = this.keys[i];
+      if (a && b) h += Math.hypot(b.position.x - a.position.x, b.position.z - a.position.z);
+    }
+    return h;
+  }
+
+  finish(): SectionGeometry {
+    // Recompute lengths from the final positions so reshaped heights count.
+    let total = 0;
+    const cumulative: number[] = [0];
+    for (let i = 1; i < this.keys.length; i++) {
+      const a = this.keys[i - 1];
+      const b = this.keys[i];
+      if (a && b) total += Vector3.Distance(a.position, b.position);
+      cumulative.push(total);
+    }
+    const safe = Math.max(total, 1e-9);
+    const keys = this.keys.map((key, i) => ({ ...key, t: (cumulative[i] ?? 0) / safe }));
     // Flags describe the segment that starts at a key, so the entry key takes the first segment's.
     const first = keys[0];
     const second = keys[1];
     if (first && second) first.flags = second.flags;
-    return { keys, exit: clonePose(this.pose), length: this.length };
+    return { keys, exit: clonePose(this.pose), length: total };
   }
 }

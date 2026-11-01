@@ -37,6 +37,7 @@ uniform vec3 zenithColor;
 uniform vec3 moonDir;
 uniform vec3 moonGlowColor;
 uniform float starDensity;
+uniform float bandStrength;
 uniform float time;
 
 float hash13(vec3 p3) {
@@ -78,7 +79,7 @@ void main(void) {
   vec3 bandNormal = normalize(vec3(0.32, 0.58, 0.75));
   float band = exp(-pow(dot(d, bandNormal) * 5.0, 2.0));
   float bandNoise = noise3(d * 9.0) * 0.55 + noise3(d * 24.0) * 0.45;
-  col += vec3(0.15, 0.16, 0.26) * band * bandNoise * smoothstep(0.0, 0.2, h);
+  col += vec3(0.15, 0.16, 0.26) * band * bandNoise * smoothstep(0.0, 0.2, h) * bandStrength;
 
   // Atmospheric glow around the moon.
   float m = max(dot(d, moonDir), 0.0);
@@ -148,6 +149,7 @@ export class Sky {
           'moonDir',
           'moonGlowColor',
           'starDensity',
+          'bandStrength',
           'time',
         ],
       },
@@ -158,6 +160,7 @@ export class Sky {
     this.material.setColor3('bandColor', config.band);
     this.material.setColor3('zenithColor', config.zenith);
     this.material.setFloat('starDensity', config.starDensity);
+    this.material.setFloat('bandStrength', config.bandStrength);
     this.material.setFloat('time', 0);
     const keyMoon = config.moons[0];
     this.material.setVector3(

@@ -7,20 +7,22 @@ export interface Pose {
   pitch: number;
 }
 
+/** Per-segment rendering hints. Neither one changes the path or the ride. */
 export interface SegmentFlags {
-  chain?: boolean;
-  brake?: boolean;
-  station?: boolean;
+  /** The tube is left open here: the ball flies through the air. */
+  gap?: boolean;
+  /** An opaque shell wraps the tube here. */
+  tunnel?: boolean;
 }
 
 /**
- * How bank is interpreted along a piece. Gravity-framed pieces keep "up" measured against
- * the world; transport-framed pieces (loops) follow parallel transport so riders invert.
+ * How bank is interpreted along a section. Gravity-framed sections keep "up" measured against
+ * the world; transport-framed sections (loops) follow parallel transport so the view inverts.
  */
 export type FrameMode = 'gravity' | 'transport';
 
-/** A key emitted by a piece, in world space. `t` runs 0 to 1 along the piece by arc length. */
-export interface PieceKey {
+/** A key emitted by a section, in world space. `t` runs 0 to 1 along the section by arc length. */
+export interface SectionKey {
   position: Vector3;
   /** Designed bank in radians, positive rolls to the right. */
   bank: number;
@@ -28,9 +30,9 @@ export interface PieceKey {
   flags: SegmentFlags;
 }
 
-/** A piece key with the model's bookkeeping attached. */
-export interface TrackKey extends PieceKey {
-  pieceIndex: number;
+/** A section key with the track's bookkeeping attached. */
+export interface TrackKey extends SectionKey {
+  sectionIndex: number;
   frame: FrameMode;
 }
 
@@ -44,40 +46,13 @@ export interface TrackFrame {
   /** 1 / radius of curvature in metres. */
   curvature: number;
   bank: number;
-  pieceIndex: number;
+  sectionIndex: number;
   t: number;
   flags: SegmentFlags;
 }
 
-export type ParamValue = number | string;
-export type PieceParams = Record<string, ParamValue>;
-
-export interface ParamDef {
-  label: string;
-  options: readonly ParamValue[];
-  default: ParamValue;
-  /** Formats an option for the palette chip. */
-  format?: (value: ParamValue) => string;
-}
-
-export type PieceCategory = 'basic' | 'hills' | 'inversions' | 'special';
-
-export interface PieceGeometry {
-  keys: PieceKey[];
+export interface SectionGeometry {
+  keys: SectionKey[];
   exit: Pose;
   length: number;
-}
-
-export interface PieceDef {
-  id: string;
-  label: string;
-  category: PieceCategory;
-  description: string;
-  params: Record<string, ParamDef>;
-  frame: FrameMode;
-  /** Pieces the palette does not offer, such as the station. */
-  hidden?: boolean;
-  /** Returns why the piece cannot start from this pose, or null when it can. */
-  check?: (entry: Pose, params: PieceParams) => string | null;
-  build: (entry: Pose, params: PieceParams) => PieceGeometry;
 }

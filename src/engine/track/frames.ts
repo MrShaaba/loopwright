@@ -90,9 +90,9 @@ export function buildFrames(
     const k0 = ordered[sample.segment] ?? ordered[keyCount - 1];
     const k1 = ordered[(sample.segment + 1) % keyCount] ?? k0;
     if (!k0 || !k1) continue;
-    const samePiece = k1.pieceIndex === k0.pieceIndex;
+    const sameSection = k1.sectionIndex === k0.sectionIndex;
     const bank = k0.bank + wrapAngle(k1.bank - k0.bank) * sample.t;
-    const t1 = samePiece ? k1.t : 1;
+    const t1 = sameSection ? k1.t : 1;
     const t = k0.t + (t1 - k0.t) * sample.t;
     modes.push(k0.frame);
     frames.push({
@@ -103,7 +103,7 @@ export function buildFrames(
       right: Vector3.Right(),
       curvature: 0,
       bank,
-      pieceIndex: k0.pieceIndex,
+      sectionIndex: k0.sectionIndex,
       t,
       flags: k0.flags,
     });

@@ -1,12 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { bootGame, type Controller } from './bridge';
-  import CameraPanel from './components/CameraPanel.svelte';
-  import Dock from './components/Dock.svelte';
+  import EditBar from './components/EditBar.svelte';
   import HelpOverlay from './components/HelpOverlay.svelte';
   import LoadingScreen from './components/LoadingScreen.svelte';
   import RideHud from './components/RideHud.svelte';
-  import StatusBar from './components/StatusBar.svelte';
   import Toast from './components/Toast.svelte';
   import TopBar from './components/TopBar.svelte';
   import { ui } from './state/game.svelte';
@@ -40,19 +38,15 @@
   });
 </script>
 
-<canvas bind:this={canvas} class="stage" tabindex="-1" aria-label="Park view"></canvas>
+<canvas bind:this={canvas} class="stage" tabindex="-1" aria-label="Ride view"></canvas>
 
 {#if controller}
-  <div class="hud">
+  <div class="hud" class:riding={ui.mode === 'ride'}>
     <TopBar {controller} />
     {#if ui.mode === 'ride'}
       <RideHud {controller} />
     {:else}
-      {#if ui.dockOpen}
-        <Dock {controller} />
-      {/if}
-      <CameraPanel {controller} />
-      <StatusBar />
+      <EditBar {controller} />
     {/if}
     {#if ui.helpOpen}
       <HelpOverlay {controller} />

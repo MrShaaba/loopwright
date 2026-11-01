@@ -6,8 +6,9 @@
   --line-strong: rgba(255, 255, 255, 0.2);
   --text: #e9e7f2;
   --muted: #9b99ae;
-  --accent: #ffa63e;
-  --accent-soft: rgba(255, 166, 62, 0.16);
+  --accent: #6fc3ff;
+  --accent-soft: rgba(111, 195, 255, 0.16);
+  --accent-text: #cfeaff;
   --moon: #dfe6ff;
   --danger: #ff5c6c;
   --ok: #7ad88e;
@@ -90,8 +91,8 @@ button {
 
 .button.primary {
   background: var(--accent-soft);
-  border-color: rgba(255, 166, 62, 0.4);
-  color: #ffd9a8;
+  border-color: var(--accent);
+  color: var(--accent-text);
 }
 
 .button.icon {
@@ -125,4 +126,13 @@ button {
   font-size: 12px;
   text-align: center;
   color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

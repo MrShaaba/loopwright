@@ -201,6 +201,13 @@ export class CameraRig {
     return true;
   }
 
+  /** Replaces a preset's view, for presets that follow the track. */
+  setPreset(preset: CameraPreset): void {
+    const index = this.options.presets.findIndex((p) => p.id === preset.id);
+    if (index >= 0) this.options.presets[index] = preset;
+    else this.options.presets.push(preset);
+  }
+
   /** Glides the orbit camera's target to a point, keeping the current angles. */
   flyToPoint(point: Vector3, radius: number): void {
     if (this.mode === 'fly') this.setMode('orbit');
