@@ -3,6 +3,8 @@ import type { CompiledTrack, SectionRange } from '../track/Track';
 
 export type ItemKind = 'ring' | 'gem' | 'boost' | 'hazard';
 
+export type ItemPattern = 'single' | 'line' | 'arc' | 'choice' | 'weave';
+
 export interface Item {
   id: number;
   kind: ItemKind;
@@ -12,6 +14,9 @@ export interface Item {
   theta: number;
   /** Section index the item sits in. */
   sectionIndex: number;
+  /** The group this item was laid down with; items in a group share a number. */
+  group: number;
+  pattern: ItemPattern;
 }
 
 export interface ItemLayout {
@@ -29,17 +34,30 @@ export const PLACEMENT = {
   joinMargin: 4,
   /** Rings in a line or arc sit this far apart. */
   ringSpacing: 3.5,
-  /** Gap kept clear before and after a hazard so there is time to see and steer. */
-  hazardClear: 18,
+  /** Gap kept clear before and after a hazard so there is time to see and steer, even at 2x. */
+  hazardClear: 22,
+  /** Hazards inside a weave alternate sides this far apart. */
+  weaveSpacing: 26,
   /** Least distance between any two placed groups. */
   groupGap: 5,
   /** Gems per track, when the track has room. */
   gems: 3,
-  /** Hazards per 100 m, rounded. */
-  hazardsPer100m: 0.6,
+  /** Single hazards per 100 m, rounded. */
+  hazardsPer100m: 0.3,
   /** Boost pads per 100 m, rounded. */
   boostsPer100m: 0.7,
+  /** Metres of track per weave run, rounded. */
+  metresPerWeave: 320,
+  /** Lanes around the tube: 0 is the floor, 2 and -2 sit near the ceiling. */
+  lanes: 5,
 } as const;
+
+/** Angle of a lane: five lanes spread evenly around the tube. */
+export function laneTheta(lane: number): number {
+  return (lane * TAU) / PLACEMENT.lanes;
+}
+
+const TAU = Math.PI * 2;
 
 interface Span {
   s0: number;
@@ -54,8 +72,6 @@ interface Placed {
   /** Clearance this group needs from anything else. */
   gap: number;
 }
-
-const TAU = Math.PI * 2;
 
 function wrap(theta: number): number {
   let a = theta % TAU;
@@ -137,7 +153,9 @@ function findSlot(
 /**
  * Generates the gameplay items for a track from a seed. The same track and seed always give the
  * same layout. Items keep clear of section joins and jump gaps, hazards get a clear run-in, and
- * gems hide on harder lines: the ceiling, a loop, or a tunnel wall.
+ * gems hide on harder lines: the ceiling, a loop, or a tunnel wall. Steering has to matter:
+ * hazards and pads use every lane, some boosts come paired with a ring line on the other side
+ * of the tube, and weave runs alternate hazards from side to side.
  */
 export function generateItems(track: CompiledTrack, seed: number): ItemLayout {
   const rng = createRng((seed * 7919 + Math.round(track.length * 10)) >>> 0);
@@ -145,37 +163,71 @@ export function generateItems(track: CompiledTrack, seed: number): ItemLayout {
   const items: Item[] = [];
   const placed: Placed[] = [];
   let nextId = 1;
-  const push = (kind: ItemKind, s: number, theta: number, sectionIndex: number): void => {
-    items.push({ id: nextId++, kind, s, theta: wrap(theta), sectionIndex });
+  let group = 0;
+  const push = (
+    kind: ItemKind,
+    s: number,
+    theta: number,
+    sectionIndex: number,
+    pattern: ItemPattern,
+  ): void => {
+    items.push({ id: nextId++, kind, s, theta: wrap(theta), sectionIndex, group, pattern });
   };
+  const lane = (): number => Math.floor(rng() * PLACEMENT.lanes) - 2;
+  const openWall = (span: Span): boolean => span.type !== 'loop' && span.type !== 'corkscrew';
   if (spans.length === 0) return { seed, items, rings: 0, gems: 0 };
 
-  // Hazards first: they need the most room, and rings are laid out around them.
+  // Weave runs first: three or four hazards alternating sides, with a ring on the safe side
+  // between them so the slalom pays.
+  const weaveCount = Math.round(track.length / PLACEMENT.metresPerWeave);
+  for (let i = 0; i < weaveCount; i++) {
+    const count = 3 + Math.floor(rng() * 2);
+    const length = (count - 1) * PLACEMENT.weaveSpacing;
+    const slot = findSlot(rng, spans, placed, length, PLACEMENT.hazardClear, openWall);
+    if (!slot) break;
+    group++;
+    const side = rng() < 0.5 ? 1 : -1;
+    const reach = rng() < 0.4 ? 2 : 1;
+    for (let k = 0; k < count; k++) {
+      const sign = k % 2 === 0 ? side : -side;
+      const s = slot.s0 + k * PLACEMENT.weaveSpacing;
+      push('hazard', s, laneTheta(sign * reach), slot.span.sectionIndex, 'weave');
+      if (k < count - 1) {
+        // A ring half-way to the next hazard, on the side the player should already be heading.
+        push(
+          'ring',
+          s + PLACEMENT.weaveSpacing / 2,
+          laneTheta(-sign * reach),
+          slot.span.sectionIndex,
+          'weave',
+        );
+      }
+    }
+    placed.push({ s0: slot.s0, s1: slot.s0 + length, gap: PLACEMENT.hazardClear });
+  }
+
+  // Single hazards in any lane.
   const hazardCount = Math.round((track.length / 100) * PLACEMENT.hazardsPer100m);
   for (let i = 0; i < hazardCount; i++) {
-    const slot = findSlot(
-      rng,
-      spans,
-      placed,
-      1,
-      PLACEMENT.hazardClear,
-      (span) => span.type !== 'loop' && span.type !== 'corkscrew',
-    );
+    const slot = findSlot(rng, spans, placed, 1, PLACEMENT.hazardClear, openWall);
     if (!slot) break;
-    // Hazards sit at one of five lanes so there is always a clear line past them.
-    const lane = Math.floor(rng() * 5) - 2;
-    push('hazard', slot.s0, (lane * TAU) / 5, slot.span.sectionIndex);
+    group++;
+    push('hazard', slot.s0, laneTheta(lane()), slot.span.sectionIndex, 'single');
     placed.push({ s0: slot.s0, s1: slot.s0 + 1, gap: PLACEMENT.hazardClear });
   }
 
-  // Boost pads on the floor, on sections where a burst reads well.
+  // Boost pads in any lane. Half of them come with a short ring line across the tube, so you
+  // pick the pad or the rings.
   const boostCount = Math.round((track.length / 100) * PLACEMENT.boostsPer100m);
   for (let i = 0; i < boostCount; i++) {
+    const choice = i % 2 === 1;
+    const ringCount = 4;
+    const length = choice ? (ringCount - 1) * PLACEMENT.ringSpacing : 2;
     const slot = findSlot(
       rng,
       spans,
       placed,
-      2,
+      length,
       PLACEMENT.groupGap,
       (span) =>
         span.type === 'straight' ||
@@ -184,8 +236,26 @@ export function generateItems(track: CompiledTrack, seed: number): ItemLayout {
         span.type === 'return',
     );
     if (!slot) break;
-    push('boost', slot.s0 + 1, 0, slot.span.sectionIndex);
-    placed.push({ s0: slot.s0, s1: slot.s0 + 2, gap: PLACEMENT.groupGap });
+    group++;
+    const padLane = lane();
+    if (choice) {
+      // Rings two lanes away: at least 144 degrees round the tube from the pad.
+      const ringLane = padLane + (rng() < 0.5 ? 2 : -2);
+      const middle = slot.s0 + length / 2;
+      push('boost', middle, laneTheta(padLane), slot.span.sectionIndex, 'choice');
+      for (let k = 0; k < ringCount; k++) {
+        push(
+          'ring',
+          slot.s0 + k * PLACEMENT.ringSpacing,
+          laneTheta(ringLane),
+          slot.span.sectionIndex,
+          'choice',
+        );
+      }
+    } else {
+      push('boost', slot.s0 + 1, laneTheta(padLane), slot.span.sectionIndex, 'single');
+    }
+    placed.push({ s0: slot.s0, s1: slot.s0 + length, gap: PLACEMENT.groupGap });
   }
 
   // Gems: the ceiling of a loop, the wall of a tunnel, or a high line elsewhere.
@@ -194,33 +264,40 @@ export function generateItems(track: CompiledTrack, seed: number): ItemLayout {
   for (let i = 0; i < PLACEMENT.gems; i++) {
     const slot = findSlot(rng, spans, placed, 1, PLACEMENT.groupGap, hard);
     if (!slot) break;
+    group++;
     const side = rng() < 0.5 ? -1 : 1;
     const theta =
       slot.span.type === 'loop' ? Math.PI : side * (Math.PI * 0.62 + rng() * Math.PI * 0.25);
-    push('gem', slot.s0, theta, slot.span.sectionIndex);
+    push('gem', slot.s0, theta, slot.span.sectionIndex, 'single');
     placed.push({ s0: slot.s0, s1: slot.s0 + 1, gap: PLACEMENT.groupGap });
     gems++;
   }
 
   // Rings: lines and arcs until the track is comfortably full.
-  let rings = 0;
   const target = Math.round(track.length / 9);
-  for (let attempt = 0; attempt < 200 && rings < target; attempt++) {
+  const ringsSoFar = (): number => items.filter((item) => item.kind === 'ring').length;
+  for (let attempt = 0; attempt < 200 && ringsSoFar() < target; attempt++) {
     const count = 4 + Math.floor(rng() * 4);
     const length = (count - 1) * PLACEMENT.ringSpacing;
     const slot = findSlot(rng, spans, placed, length, PLACEMENT.groupGap);
     if (!slot) break;
+    group++;
     const arc = rng() < 0.45;
     const start = (Math.floor(rng() * 8) - 4) * (Math.PI / 6);
     const sweep = arc ? (rng() < 0.5 ? -1 : 1) * (Math.PI / 3 + rng() * (Math.PI / 2)) : 0;
     for (let k = 0; k < count; k++) {
       const t = count > 1 ? k / (count - 1) : 0;
-      push('ring', slot.s0 + k * PLACEMENT.ringSpacing, start + sweep * t, slot.span.sectionIndex);
+      push(
+        'ring',
+        slot.s0 + k * PLACEMENT.ringSpacing,
+        start + sweep * t,
+        slot.span.sectionIndex,
+        arc ? 'arc' : 'line',
+      );
     }
     placed.push({ s0: slot.s0, s1: slot.s0 + length, gap: PLACEMENT.groupGap });
-    rings += count;
   }
 
-  items.sort((a, b) => a.s - b.s);
-  return { seed, items, rings, gems };
+  items.sort((a, b) => a.s - b.s || a.id - b.id);
+  return { seed, items, rings: ringsSoFar(), gems };
 }
