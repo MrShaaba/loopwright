@@ -19,8 +19,12 @@ reshapes while you drag. The track always closes itself with a smooth return sec
 checks point at the section that goes underground, crosses itself or is pitched too tight.
 
 The default look is Minimal: a soft dark gradient, gentle fog, a faint floor grid and a glass tube.
-Haunted Hollow, Primeval Valley and Xeno Reach are optional skins that change only how things
-look, never the track or the ride.
+Six optional skins change only how things look, never the track or the ride: Haunted Hollow,
+Primeval Valley and Xeno Reach are moods of sky and light; Frostline adds falling snow, pines with
+white caps and string lights along the tube; Abyss puts the track under water with light rippling
+on the sand, kelp, schools of fish and bubbles; Neon District rings the track with window-lit
+towers and runs two neon rails beside the glass. Every theme has its own synthesised ambient
+music bed, off by default.
 
 On top of the ride sits a game. Steer the ball around the inside of the tube with the left and
 right arrows to collect gold rings, worth more the faster you go and more again in a combo, hunt
@@ -31,13 +35,18 @@ alternate barriers from side to side. Every lap is scored within its speed band 
 laps are kept per track and band. Time Attack drops the items, races a ghost of your fastest lap
 and shows the split at each section. Cruise mode is the pure ride.
 
+Gems you collect add up across every track. They unlock nine ball skins and eight trails in the
+locker (`L`), which also lists eighteen achievements, from the first gem to a perfect combo lap
+and a lap in every theme. Progress stays in localStorage like everything else. A gamepad works
+out of the box: the stick steers, the triggers change speed, A boosts.
+
 ## Stack
 
 - [Babylon.js 9](https://www.babylonjs.com/) for the 3D engine, WebGL2
 - TypeScript in strict mode
 - [Svelte 5](https://svelte.dev/) for the HUD, timeline, inspector and dialogs, layered over the canvas
 - Vite for dev and build, Vitest for unit tests, ESLint and Prettier
-- Web Audio for synthesised wind and roll (no audio files)
+- Web Audio for synthesised wind, roll, item sounds and the ambient music beds (no audio files)
 - No backend. Tracks autosave to localStorage, export as JSON and travel inside a URL hash.
 
 All geometry is generated from the track frames and Babylon primitives. The tube is a custom mesh
@@ -73,7 +82,9 @@ npm run format   # Prettier write
 | Editor   | click the tube to select a section, `Delete` remove it, `Ctrl`/`Cmd+D` duplicate, `1` frame all |
 | Editor   | `Ctrl`/`Cmd+Z` undo, `Shift+Ctrl`/`Cmd+Z` redo, a whole slider drag is one step                 |
 | Orbit    | drag to orbit, right-drag to pan, scroll to zoom, `F` toggles the free-fly camera               |
-| Anywhere | `T` next theme, `M` mute, `O` save a photo, `?` or `H` shortcuts                                |
+| Anywhere | `T` next theme, `L` locker, `M` mute, `N` music, `O` save a photo, `?` or `H` shortcuts         |
+| Gamepad  | left stick or d-pad steer, right and left trigger speed up and down, `A` boost, `B` ride        |
+| Gamepad  | `Start` pause, `X` switch view; rings, gems and barriers rumble where the pad has haptics       |
 
 On touch devices, left and right steering buttons sit at the bottom corners of the ride view.
 
@@ -105,7 +116,25 @@ timed and the best lap is kept per track.
 - The first ride opens a short how-to card, remembered once dismissed; the shortcuts overlay can
   bring it back.
 - Sound: a chime whose pitch climbs with the combo, a sparkle for gems, a whoosh for boosts and a
-  thud for hazards. `M` mutes everything.
+  thud for hazards. `M` mutes everything and the ride controls hold a master volume slider.
+- Music: each theme has an ambient bed built live from oscillators, a detuned drone under a slow
+  filter sweep and a melody that walks the theme's scale, with a pulse in Primeval Valley and Neon
+  District. It is off by default; `N` or the Music button turns it on and it follows theme
+  changes.
+
+## Rewards
+
+- Gems count across every track, the moment they are collected. Nine ball skins (Lattice,
+  Meridian, Honeycomb, Ember, Orbit, Nova, Pulsar, Prism, Eclipse) and eight trails (Comet, Sparks,
+  Stardust, Embers, Bubbles, Afterimage, Aurora, or none) unlock at gem thresholds from 2 to 50.
+  Skins take the theme's ball colour, so they fit every world; the locker previews each one with
+  the same painter that makes the ball's texture.
+- Achievements: first gem, first lap, every ring on a track, a perfect combo lap, a lap with no
+  barrier hit, every gem on a track, a lap above 2x, a twenty-ring combo, five pads in a lap,
+  beating your ghost, gem and ring and lap milestones, five tracks, every theme and 250 km/h. Each
+  shows a toast when earned and the locker lists them with the date.
+- The locker opens with `L` or the gem button in the top bar, pauses a running ride, and keeps
+  the equipped skin and trail in the saved prefs.
 
 The Share button in the top bar renames the track, copies a link that rebuilds it with no server,
 exports and imports JSON, and takes a photo. The track name opens the five starter tracks.
@@ -123,24 +152,28 @@ src/engine/tube/      the glass tube mesh and shader, light rings, supports, tun
 src/engine/ride/      ball physics, the ball, the ride controller
 src/engine/camera/    editor orbit and fly cameras, the inside ride camera
 src/engine/edit/      section list, selection, undo with drag batching
-src/engine/game/      item placement, scoring, the game controller and the item renderer
+src/engine/game/      item placement, scoring, the game controller, the item renderer, ghosts
+src/engine/progress/  lifetime totals, unlock thresholds, achievements and their stores
+src/engine/input/     the key registry and the gamepad reader
 src/engine/validate/  track checks and the scene pins
-src/engine/theme/     Minimal and the three skins
+src/engine/theme/     Minimal and the six skins, each with its props and music spec
 src/engine/save/      track document, localStorage, the share codec, high scores
 src/engine/starters/  the five starter tracks
-src/engine/scene/     sky, lighting, fog and post-processing, floor, performance governor
-src/engine/audio/     Web Audio wind and roll
+src/engine/scene/     sky, lighting, fog and post-processing, floor, theme props, performance governor
+src/engine/audio/     Web Audio wind, roll, item sounds and the music beds
 src/ui/               Svelte 5 HUD, state and the single bridge module that talks to the engine
 ```
 
 The engine never imports Svelte and the UI never imports Babylon. Track maths, physics,
-validation, the edit history, item placement, scoring, high scores and the share codec are pure
+validation, the edit history, item placement, scoring, high scores, the share codec, progress and
+unlocks, achievements, the skin painter, the gamepad reader and the music helpers are pure
 TypeScript and run under Vitest without a browser.
 
 ## Status
 
-The ride, the slider editor, validation, five starter tracks, four looks, sharing and the game
-layer are done.
+The ride, the slider editor, validation, five starter tracks, seven looks, sharing, the game layer,
+speed bands and Time Attack, the locker with skins and trails, achievements, gamepad support and
+the music beds are done.
 See [ROADMAP.md](ROADMAP.md) for what comes next and [docs/PLAN.md](docs/PLAN.md) for the plan
 this build followed.
 
