@@ -153,6 +153,8 @@ export class ScenicStage {
       if (material) {
         material.pointSize = placement.pointSize;
         material.fogEnabled = false;
+        // Far scenery sits behind the glow of the tube; take it down from pure white.
+        if (material instanceof PBRMaterial) material.albedoColor = new Color3(0.72, 0.78, 0.9);
         material.freeze();
       }
       mesh.computeWorldMatrix(true);

@@ -74,6 +74,8 @@ Hand placement of rings, gems, pads and barriers on top of the generated layout.
 
 ## Later
 
+- Scenic Worlds: a haunted model for the open slot, a fog-of-distance pass so the Far Shore
+  skybox ground reads as terrain, and a KTX2 texture path for GPUs that prefer it
 - Daily and weekly leaderboards need a server; everything above stays local on purpose
 - A WebGPU engine option, once the tube and sky shaders have WGSL versions
 - Track compilation in a worker for very long tracks

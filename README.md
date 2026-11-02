@@ -26,6 +26,13 @@ on the sand, kelp, schools of fish and bubbles; Neon District rings the track wi
 towers and runs two neon rails beside the glass. Every theme has its own synthesised ambient
 music bed, off by default.
 
+Scenic Worlds are a separate, optional set of stages built from downloaded models, kept apart
+from the themes in their own picker tab and cycled with `Shift+T`. Nebula Drift, Deep Field, Far
+Shore and Snowfield each bring their own sky, light, fog, ground or no ground, tube and ball
+styling and particles, and a fifth slot waits for a haunted model. A world only changes the look:
+the track, the physics and the scores are the same in every world. Models download when a world
+is chosen, with a progress bar, and fall back to Minimal with a toast if anything fails.
+
 On top of the ride sits a game. Steer the ball around the inside of the tube with the left and
 right arrows to collect gold rings, worth more the faster you go and more again in a combo, hunt
 the three faceted gems hidden on the harder lines, roll over boost pads for a burst, and steer
@@ -74,17 +81,17 @@ npm run format   # Prettier write
 
 ## Controls
 
-| Context  | Keys and mouse                                                                                  |
-| -------- | ----------------------------------------------------------------------------------------------- |
-| Anywhere | `Enter` or `Space` ride, and the same key or `Esc` returns to the editor                        |
-| Ride     | `←` `→` (or `A` `D`) steer around the tube, `↑` `↓` nudge the speed multiplier                  |
-| Ride     | hold `Shift` to boost, `P` pause, `C` Inside or Follow view, `Space` goes again after a lap     |
-| Editor   | click the tube to select a section, `Delete` remove it, `Ctrl`/`Cmd+D` duplicate, `1` frame all |
-| Editor   | `Ctrl`/`Cmd+Z` undo, `Shift+Ctrl`/`Cmd+Z` redo, a whole slider drag is one step                 |
-| Orbit    | drag to orbit, right-drag to pan, scroll to zoom, `F` toggles the free-fly camera               |
-| Anywhere | `T` next theme, `L` locker, `M` mute, `N` music, `O` save a photo, `?` or `H` shortcuts         |
-| Gamepad  | left stick or d-pad steer, right and left trigger speed up and down, `A` boost, `B` ride        |
-| Gamepad  | `Start` pause, `X` switch view; rings, gems and barriers rumble where the pad has haptics       |
+| Context  | Keys and mouse                                                                                    |
+| -------- | ------------------------------------------------------------------------------------------------- |
+| Anywhere | `Enter` or `Space` ride, and the same key or `Esc` returns to the editor                          |
+| Ride     | `←` `→` (or `A` `D`) steer around the tube, `↑` `↓` nudge the speed multiplier                    |
+| Ride     | hold `Shift` to boost, `P` pause, `C` Inside or Follow view, `Space` goes again after a lap       |
+| Editor   | click the tube to select a section, `Delete` remove it, `Ctrl`/`Cmd+D` duplicate, `1` frame all   |
+| Editor   | `Ctrl`/`Cmd+Z` undo, `Shift+Ctrl`/`Cmd+Z` redo, a whole slider drag is one step                   |
+| Orbit    | drag to orbit, right-drag to pan, scroll to zoom, `F` toggles the free-fly camera                 |
+| Anywhere | `T` next theme, `Shift+T` next Scenic World, `L` locker, `M` mute, `N` music, `O` photo, `?` help |
+| Gamepad  | left stick or d-pad steer, right and left trigger speed up and down, `A` boost, `B` ride          |
+| Gamepad  | `Start` pause, `X` switch view; rings, gems and barriers rumble where the pad has haptics         |
 
 On touch devices, left and right steering buttons sit at the bottom corners of the ride view.
 
@@ -139,6 +146,32 @@ timed and the best lap is kept per track.
 The Share button in the top bar renames the track, copies a link that rebuilds it with no server,
 exports and imports JSON, and takes a photo. The track name opens the five starter tracks.
 
+## Scenic Worlds
+
+The worlds live in `src/engine/scenic/`: a registry of worlds, a loader and a stage that places
+the models. The models are six CC BY 4.0 files, listed with their authors in
+[CREDITS.md](CREDITS.md) and in the in-app Credits panel, and a credit line sits in the corner
+while a world is active.
+
+- `npm run assets:scenic` runs `scripts/compress-scenic.mjs`: it reads the originals from
+  `~/Downloads/loopwright-assets/` (or `LOOPWRIGHT_ASSETS`), re-encodes every texture as WebP at
+  a size to suit, quantises and meshopt-compresses the geometry, simplifies the snowy terrain from
+  524k to 53k triangles, and writes the results with a manifest to `public/models/scenic/`. The
+  budget is 15 MB per file and 40 MB in all; the set comes to 4.65 MB. Only the outputs are
+  committed, never the originals.
+- The manifest holds each file's title, author, author link, source, licence and the note that it
+  was compressed and resized for real-time use, read from the file's own `asset.extras`. The app
+  refuses to load a file without a manifest entry, and checks the licence, title and author inside
+  the file against the entry before Babylon sees the bytes.
+- Skyboxes are fitted to a fixed radius, unlit, fog-free, outside the glow layer and follow the
+  camera. The terrain is stretched past the track's footprint and pinned so its highest point
+  stays clear below the lowest tube, and is refitted after every edit. Static meshes freeze their
+  world matrices and materials, and a world is disposed in full when the next one loads.
+- Measured in Chromium on this machine with the Flow track, every world holds 60 fps at 1x and
+  3x from inside the tube: an average frame of 16.7 ms with the 95th percentile between 18 and 19
+  ms, and the render scale never drops.
+- The meshopt decoder ships with the app in `public/decoders/`, so nothing loads from a CDN.
+
 ## Accessibility
 
 With `prefers-reduced-motion` set, the field of view stays fixed, the streaks calm down, the
@@ -160,20 +193,22 @@ src/engine/theme/     Minimal and the six skins, each with its props and music s
 src/engine/save/      track document, localStorage, the share codec, high scores
 src/engine/starters/  the five starter tracks
 src/engine/scene/     sky, lighting, fog and post-processing, floor, theme props, performance governor
+src/engine/scenic/    Scenic Worlds: registry, licence manifest checks, loader and stage
+scripts/              the asset pipeline for the Scenic Worlds models
 src/engine/audio/     Web Audio wind, roll, item sounds and the music beds
 src/ui/               Svelte 5 HUD, state and the single bridge module that talks to the engine
 ```
 
 The engine never imports Svelte and the UI never imports Babylon. Track maths, physics,
 validation, the edit history, item placement, scoring, high scores, the share codec, progress and
-unlocks, achievements, the skin painter, the gamepad reader and the music helpers are pure
-TypeScript and run under Vitest without a browser.
+unlocks, achievements, the skin painter, the gamepad reader, the music helpers, the licence
+manifest and the world registry are pure TypeScript and run under Vitest without a browser.
 
 ## Status
 
 The ride, the slider editor, validation, five starter tracks, seven looks, sharing, the game layer,
-speed bands and Time Attack, the locker with skins and trails, achievements, gamepad support and
-the music beds are done.
+speed bands and Time Attack, the locker with skins and trails, achievements, gamepad support,
+the music beds and four Scenic Worlds built from downloaded models are done.
 See [ROADMAP.md](ROADMAP.md) for what comes next and [docs/PLAN.md](docs/PLAN.md) for the plan
 this build followed.
 
