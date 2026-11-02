@@ -21,8 +21,10 @@ export interface SkyVariant {
 /** A model placed far off as set dressing. */
 export interface SceneryPlacement {
   file: string;
+  /** Where the model's centre goes. */
   position: [number, number, number];
-  scale: number;
+  /** Metres across its longest side after fitting. */
+  size: number;
   /** Turn about the vertical axis, radians. */
   yaw: number;
   /** Pixel size for point-cloud models. */
@@ -157,8 +159,8 @@ const deepField: ScenicWorld = {
   skies: [{ id: 'deep-space', name: 'Deep Space', file: 'deep-space.glb' }],
   scenery: {
     file: 'need-some-space.glb',
-    position: [-360, 40, 520],
-    scale: 1.4,
+    position: [-340, 120, 520],
+    size: 360,
     yaw: 0.6,
     pointSize: 2,
   },
@@ -191,7 +193,8 @@ const deepField: ScenicWorld = {
       edge: new Color3(0.82, 0.92, 1.0),
       intensity: 1.15,
     },
-    ball: { color: new Color3(0.9, 0.95, 1.0), light: 1.6 },
+    // Pale gold against a white tube and a sky full of starlight.
+    ball: { color: new Color3(1.0, 0.86, 0.6), light: 1.6 },
     ui: { accent: '#9fd4ff', accentSoft: 'rgba(159, 212, 255, 0.16)', accentText: '#dff0ff' },
     props: {
       weather: {
@@ -203,7 +206,7 @@ const deepField: ScenicWorld = {
       },
     },
     supports: false,
-    skyLevel: 1.15,
+    skyLevel: 0.85,
     ballTrail: {
       sprite: 'disc',
       color: [0.75, 0.88, 1.0],
@@ -252,10 +255,8 @@ const farShore: ScenicWorld = {
       contrast: 1.12,
       vignette: 1.6,
     },
-    floor: {
-      color: new Color3(0.3, 0.18, 0.13),
-      grid: null,
-    },
+    // The painted ground of the skybox is the shore; a flat plane would cut its horizon in two.
+    floor: null,
     tube: {
       tint: new Color3(0.16, 0.34, 0.62),
       edge: new Color3(0.45, 0.85, 1.0),
@@ -271,7 +272,7 @@ const farShore: ScenicWorld = {
   },
 };
 
-const SNOW_FOG = new Color3(0.5, 0.57, 0.7);
+const SNOW_FOG = new Color3(0.42, 0.48, 0.62);
 
 const snowfield: ScenicWorld = {
   id: 'snowfield',
@@ -280,7 +281,7 @@ const snowfield: ScenicWorld = {
   status: 'ready',
   skies: [],
   scenery: null,
-  terrain: { file: 'snowy-terrain.glb', clearance: 1.2, margin: 160 },
+  terrain: { file: 'snowy-terrain.glb', clearance: 1.2, margin: 420 },
   look: {
     sky: {
       horizon: SNOW_FOG,
@@ -298,7 +299,7 @@ const snowfield: ScenicWorld = {
         },
       ],
     },
-    fog: { color: SNOW_FOG, density: 0.0026 },
+    fog: { color: SNOW_FOG, density: 0.0032 },
     lighting: {
       key: {
         azimuthDeg: 300,

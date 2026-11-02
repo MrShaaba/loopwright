@@ -11,10 +11,31 @@
   let confirmId: string | null = $state(null);
   let themesOpen = $state(false);
   let shareOpen = $state(false);
+  let lookTab: 'themes' | 'worlds' = $state('themes');
+
+  // Open on the tab that matches what is showing.
+  $effect(() => {
+    if (themesOpen) lookTab = ui.world ? 'worlds' : 'themes';
+  });
 
   function pickTheme(id: string): void {
     themesOpen = false;
     controller.setTheme(id);
+  }
+
+  function pickWorld(id: string): void {
+    themesOpen = false;
+    controller.enterWorld(id);
+  }
+
+  function pickNoWorld(): void {
+    themesOpen = false;
+    if (ui.world) controller.leaveWorld();
+  }
+
+  function openCredits(): void {
+    themesOpen = false;
+    controller.openCredits();
   }
 
   function openTracks(): void {
@@ -92,26 +113,94 @@
         onclick={() => (themesOpen = !themesOpen)}
         aria-expanded={themesOpen}
         aria-haspopup="menu"
-        title="Theme (T cycles)"
+        title={ui.world ? 'Scenic World (Shift+T cycles)' : 'Theme (T cycles)'}
       >
         <span class="swatch" aria-hidden="true"></span>
-        {ui.theme.name}
+        {ui.world ? ui.world.name : ui.theme.name}
+        {#if ui.world}<span class="world-mark">world</span>{/if}
       </button>
       {#if themesOpen}
-        <div class="menu theme-menu panel" role="menu" aria-label="Themes">
-          <p class="eyebrow">Theme · <span class="kbd">T</span> cycles</p>
-          {#each controller.themes as theme (theme.id)}
+        <div class="menu theme-menu panel" role="menu" aria-label="Look">
+          <div class="menu-tabs" role="tablist" aria-label="Look type">
+            <button
+              class="menu-tab"
+              class:active={lookTab === 'themes'}
+              role="tab"
+              aria-selected={lookTab === 'themes'}
+              onclick={() => (lookTab = 'themes')}
+            >
+              Themes <span class="kbd">T</span>
+            </button>
+            <button
+              class="menu-tab"
+              class:active={lookTab === 'worlds'}
+              role="tab"
+              aria-selected={lookTab === 'worlds'}
+              onclick={() => (lookTab = 'worlds')}
+            >
+              Scenic Worlds <span class="kbd">⇧T</span>
+            </button>
+          </div>
+          {#if lookTab === 'themes'}
+            {#each controller.themes as theme (theme.id)}
+              <button
+                class="menu-item"
+                class:current={!ui.world && theme.id === ui.theme.id}
+                role="menuitemradio"
+                aria-checked={!ui.world && theme.id === ui.theme.id}
+                onclick={() => pickTheme(theme.id)}
+              >
+                <span class="menu-label">{theme.name}</span>
+                <span class="menu-description">{theme.tagline}</span>
+              </button>
+            {/each}
+          {:else}
             <button
               class="menu-item"
-              class:current={theme.id === ui.theme.id}
+              class:current={!ui.world}
               role="menuitemradio"
-              aria-checked={theme.id === ui.theme.id}
-              onclick={() => pickTheme(theme.id)}
+              aria-checked={!ui.world}
+              onclick={pickNoWorld}
             >
-              <span class="menu-label">{theme.name}</span>
-              <span class="menu-description">{theme.tagline}</span>
+              <span class="menu-label">None</span>
+              <span class="menu-description">Show the theme: {ui.theme.name}.</span>
             </button>
-          {/each}
+            {#each controller.worlds as world (world.id)}
+              <button
+                class="menu-item"
+                class:current={ui.world?.id === world.id}
+                class:placeholder={world.status === 'placeholder'}
+                role="menuitemradio"
+                aria-checked={ui.world?.id === world.id}
+                disabled={world.status === 'placeholder'}
+                onclick={() => pickWorld(world.id)}
+              >
+                <span class="menu-label">
+                  {world.name}
+                  {#if world.status === 'placeholder'}<span class="slot">slot open</span>{/if}
+                </span>
+                <span class="menu-description">{world.tagline}</span>
+              </button>
+              {#if ui.world?.id === world.id && world.skies.length > 1}
+                <div class="variants" role="group" aria-label="Sky variant">
+                  {#each world.skies as sky (sky.id)}
+                    <button
+                      class="variant"
+                      class:active={ui.world?.skyId === sky.id}
+                      aria-pressed={ui.world?.skyId === sky.id}
+                      onclick={() => controller.enterWorld(world.id, sky.id)}
+                    >
+                      {sky.name}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            {/each}
+            <p class="menu-note">
+              Worlds are built from downloaded models under CC BY 4.0 and never change the track.
+              <button class="link" onclick={openCredits}>Credits</button>
+            </p>
+          {/if}
         </div>
       {/if}
     </div>
@@ -342,6 +431,94 @@
   .theme-menu {
     left: auto;
     right: 0;
+    width: 360px;
+  }
+
+  .menu-tabs {
+    display: flex;
+    gap: 4px;
+    margin: 2px 0 8px;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  .menu-tab {
+    flex: 1;
+    min-height: 30px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  .menu-tab.active {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  .world-mark {
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .menu-item.placeholder {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .slot {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .variants {
+    display: flex;
+    gap: 4px;
+    padding: 0 10px 8px;
+  }
+
+  .variant {
+    min-height: 26px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .variant.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  .menu-note {
+    margin: 6px 0 0;
+    padding: 8px 8px 2px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+
+  .link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-text);
+    font-size: 11px;
+    text-decoration: underline;
   }
 
   .share-wrap {

@@ -21,6 +21,16 @@ import { RideController } from './ride/RideController';
 import { BALL_SKINS, DEFAULT_SKIN_ID, getSkin } from './ride/skins';
 import { Trail } from './ride/Trail';
 import { getTrail, TRAILS } from './ride/trails';
+import type { ModelCredit } from './scenic/manifest';
+import { ScenicLoader } from './scenic/ScenicLoader';
+import { ScenicStage } from './scenic/ScenicStage';
+import {
+  getWorld,
+  nextWorldId,
+  worldFiles,
+  type ScenicWorld,
+  type SkyVariant,
+} from './scenic/worlds';
 import { encodeTrack, SHARE_PARAM, shareLink } from './save/codec';
 import { createTrackDoc, parseTrackDoc, type TrackDoc } from './save/schema';
 import { saveTrack } from './save/storage';
@@ -31,7 +41,17 @@ import { PerformanceGovernor, type PerformanceSample } from './scene/Performance
 import { Props } from './scene/Props';
 import { Sky } from './scene/Sky';
 import { getTheme, hasTheme, listThemes, nextThemeId } from './theme';
-import type { ThemeConfig } from './theme/ThemeConfig';
+import type {
+  BallStyle,
+  FloorConfig,
+  FogConfig,
+  LightingConfig,
+  PropConfig,
+  SkyConfig,
+  ThemeConfig,
+  TubeStyle,
+  UiAccent,
+} from './theme/ThemeConfig';
 import {
   compileTrack,
   sectionAtPoint,
@@ -74,6 +94,34 @@ export interface GameEvents {
   cosmetics: { skin: string; trail: string };
   /** A gamepad changed a setting the UI keeps in prefs. */
   padInput: 'multiplier' | 'view';
+  /** The Scenic World now active, or null when the theme shows. */
+  world: WorldState | null;
+  /** Progress while a world's models download; null once done or failed. */
+  scenicLoading: { name: string; fraction: number } | null;
+}
+
+export interface WorldState {
+  id: string;
+  name: string;
+  skyId: string | null;
+  credits: ModelCredit[];
+  ui: UiAccent;
+}
+
+/** What a theme or a world paints: everything but the track. */
+interface Look {
+  sky: SkyConfig | null;
+  fog: FogConfig;
+  lighting: LightingConfig;
+  floor: FloorConfig | null;
+  tube: TubeStyle;
+  ball: BallStyle;
+  props?: PropConfig;
+  supports: boolean;
+}
+
+function themeLook(theme: ThemeConfig): Look {
+  return { ...theme, supports: true };
 }
 
 interface GameParts {
@@ -123,7 +171,7 @@ export class Game {
   readonly engine: Engine;
   readonly scene: Scene;
   theme: ThemeConfig;
-  sky: Sky;
+  sky: Sky | null;
   lighting: Lighting;
   readonly cameras: CameraRig;
   readonly rideCamera: RideCamera;
@@ -142,6 +190,12 @@ export class Game {
   readonly game: GameController;
   readonly markers: IssueMarkers;
   readonly performance: PerformanceGovernor;
+  readonly loader: ScenicLoader;
+  /** The active Scenic World and its stage, or null while the theme shows. */
+  world: ScenicWorld | null = null;
+  worldSky: SkyVariant | null = null;
+  private stage: ScenicStage | null = null;
+  private loadToken = 0;
   mode: GameMode = 'edit';
   doc: TrackDoc;
   compiled: CompiledTrack;
@@ -171,6 +225,7 @@ export class Game {
     this.ride = parts.ride;
     this.doc = parts.doc;
     this.compiled = parts.compiled;
+    this.loader = new ScenicLoader(this.scene, import.meta.env.BASE_URL);
     this.validation = validateTrack(this.doc.sections, this.compiled);
     this.markers = new IssueMarkers(this.scene);
     this.markers.show(this.validation.issues);
@@ -449,7 +504,7 @@ export class Game {
       const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.1);
       this.pollGamepad(dt);
       this.edit.flush();
-      this.sky.update(dt);
+      this.sky?.update(dt);
       this.items.update(dt);
       if (this.mode === 'ride') {
         this.ride.update(dt);
@@ -462,6 +517,13 @@ export class Game {
       this.floor.update(dt);
       const camera = this.scene.activeCamera;
       if (camera) this.props.update(dt, camera.globalPosition);
+      this.stage?.update(
+        dt,
+        this.ride.feltG,
+        this.ball.position,
+        this.ride.heading,
+        this.mode === 'ride' ? this.ride.speed : 0,
+      );
       this.trail.update(
         this.ball.position,
         this.ride.heading,
@@ -497,6 +559,7 @@ export class Game {
     this.compiled = compileTrack(this.doc.sections);
     this.tube.rebuild(this.compiled);
     this.props.rebuild(this.compiled);
+    this.stage?.rebuild(this.compiled);
     this.ride.syncTrack(this.compiled);
     this.ride.setTrackKey(encodeTrack(this.doc));
     this.game.setTrack(this.compiled, this.doc.seed);
@@ -632,32 +695,133 @@ export class Game {
 
   /** Re-skins the scene live. The track, physics and ride are untouched. */
   setTheme(id: string): void {
-    if (!hasTheme(id) || id === this.theme.id) return;
+    if (!hasTheme(id) || (id === this.theme.id && !this.world)) return;
     const theme = getTheme(id);
     this.theme = theme;
-    this.sky.dispose();
-    this.lighting.dispose();
-    this.atmosphere.dispose();
-    this.sky = new Sky(this.scene, theme.sky);
-    this.lighting = new Lighting(this.scene, theme.lighting);
-    this.atmosphere = new Atmosphere(this.scene, {
-      fog: theme.fog,
-      lighting: theme.lighting,
-      cameras: [...this.cameras.cameras, this.rideCamera.camera],
-      glowExcluded: [...this.sky.glowExcluded, this.ball.mesh, this.ball.halo, this.ghostView.mesh],
-    });
-    this.floor.restyle(theme.floor, theme.fog, theme.ball);
-    this.props.dispose();
-    this.props = new Props(this.scene, theme.props, this.compiled);
-    this.tube.restyle(theme.tube, theme.fog);
-    this.ball.restyle(theme.ball);
-    this.trail.setBallColor(theme.ball.color);
+    // Picking a theme is leaving a Scenic World.
+    if (this.world) this.leaveWorld(false);
+    this.applyLook(themeLook(theme));
     this.audio.setMusic(theme.music);
     this.doc = createTrackDoc(this.doc.name, theme.id, this.doc.sections, this.doc.seed);
-    this.items.restyle(this.itemPalette());
     this.game.setThemeId(theme.id);
     this.persist();
     this.events.emit('theme', theme);
+  }
+
+  /** Rebuilds sky, light, fog, floor, props, tube and ball from a look. */
+  private applyLook(look: Look): void {
+    this.sky?.dispose();
+    this.sky = null;
+    this.lighting.dispose();
+    this.atmosphere.dispose();
+    if (look.sky) this.sky = new Sky(this.scene, look.sky);
+    this.lighting = new Lighting(this.scene, look.lighting);
+    this.atmosphere = new Atmosphere(this.scene, {
+      fog: look.fog,
+      lighting: look.lighting,
+      cameras: [...this.cameras.cameras, this.rideCamera.camera],
+      glowExcluded: [
+        ...(this.sky?.glowExcluded ?? []),
+        this.ball.mesh,
+        this.ball.halo,
+        this.ghostView.mesh,
+      ],
+    });
+    if (look.floor) {
+      this.floor.restyle(look.floor, look.fog, look.ball);
+      this.floor.mesh.setEnabled(true);
+    } else {
+      this.floor.mesh.setEnabled(false);
+    }
+    this.props.dispose();
+    this.props = new Props(this.scene, look.props, this.compiled);
+    this.tube.restyle(look.tube, look.fog);
+    this.tube.setSupportsVisible(look.supports);
+    this.ball.restyle(look.ball);
+    this.trail.setBallColor(look.ball.color);
+    this.stage?.setBallColor(look.ball.color);
+    this.items.restyle(this.itemPalette());
+  }
+
+  /**
+   * Downloads a Scenic World's models and paints the world over the current theme. The track,
+   * physics and scores are untouched, so the same lap counts in every world. A failure falls
+   * back to the Minimal look with a toast.
+   */
+  async enterWorld(id: string, skyId: string | null = null): Promise<boolean> {
+    const world = getWorld(id);
+    if (!world || world.status !== 'ready') {
+      this.toast('That world has no model yet');
+      return false;
+    }
+    const sky = world.skies.find((variant) => variant.id === skyId) ?? world.skies[0] ?? null;
+    const token = ++this.loadToken;
+    this.events.emit('scenicLoading', { name: world.name, fraction: 0 });
+    try {
+      const models = await this.loader.load(worldFiles(world, sky?.id), (progress) => {
+        if (token === this.loadToken) {
+          this.events.emit('scenicLoading', { name: world.name, fraction: progress.fraction });
+        }
+      });
+      if (token !== this.loadToken) {
+        for (const model of models) model.container.dispose();
+        return false;
+      }
+      this.stage?.dispose();
+      this.stage = null;
+      this.world = world;
+      this.worldSky = sky;
+      this.applyLook({ ...world.look });
+      this.stage = new ScenicStage(this.scene, {
+        world,
+        sky,
+        models,
+        compiled: this.compiled,
+        ballColor: this.ball.color,
+        excludeFromGlow: (mesh) => this.atmosphere.glow.addExcludedMesh(mesh),
+      });
+      this.events.emit('scenicLoading', null);
+      this.events.emit('world', {
+        id: world.id,
+        name: world.name,
+        skyId: sky?.id ?? null,
+        credits: models.map((model) => model.credit),
+        ui: world.look.ui,
+      });
+      return true;
+    } catch (error) {
+      if (token !== this.loadToken) return false;
+      this.events.emit('scenicLoading', null);
+      const reason = error instanceof Error ? error.message : 'unknown error';
+      this.leaveWorld(false);
+      this.setTheme('minimal');
+      this.toast(`Could not load ${world.name}: ${reason}. Back to Minimal.`);
+      return false;
+    }
+  }
+
+  /** Back to the theme. Any download still running is dropped. */
+  leaveWorld(restore = true): void {
+    this.loadToken++;
+    this.events.emit('scenicLoading', null);
+    if (!this.world) return;
+    this.stage?.dispose();
+    this.stage = null;
+    this.world = null;
+    this.worldSky = null;
+    if (restore) this.applyLook(themeLook(this.theme));
+    this.events.emit('world', null);
+  }
+
+  /** The next ready world, and after the last one, back to the theme. */
+  cycleWorld(): void {
+    const next = nextWorldId(this.world?.id ?? null);
+    if (next) {
+      void this.enterWorld(next);
+    } else {
+      this.leaveWorld();
+      this.toast(`Scenic world off: ${this.theme.name}`);
+    }
   }
 
   get skinId(): string {
@@ -703,7 +867,12 @@ export class Game {
   }
 
   cycleTheme(): void {
-    this.setTheme(nextThemeId(this.theme.id));
+    if (this.world) {
+      // T brings the theme back from under a Scenic World before it moves on.
+      this.leaveWorld();
+    } else {
+      this.setTheme(nextThemeId(this.theme.id));
+    }
     this.toast(this.theme.name);
   }
 
@@ -890,6 +1059,12 @@ export class Game {
     });
     this.keys.bind({
       scope: 'global',
+      combo: 'shift+KeyT',
+      label: 'Next Scenic World, then back to the theme',
+      handler: () => this.cycleWorld(),
+    });
+    this.keys.bind({
+      scope: 'global',
       combo: 'KeyM',
       label: 'Mute or unmute sound',
       handler: () => this.toast(this.ride.toggleMute() ? 'Sound muted' : 'Sound on'),
@@ -922,6 +1097,8 @@ export class Game {
     this.engine.stopRenderLoop();
     if (this.hashTimer) clearTimeout(this.hashTimer);
     for (const dispose of this.disposers) dispose();
+    this.loadToken++;
+    this.stage?.dispose();
     this.edit.dispose();
     this.game.dispose();
     this.tracker.dispose();
@@ -939,7 +1116,7 @@ export class Game {
     this.atmosphere.dispose();
     this.cameras.dispose();
     this.lighting.dispose();
-    this.sky.dispose();
+    this.sky?.dispose();
     this.scene.dispose();
     this.engine.dispose();
     this.events.clear();

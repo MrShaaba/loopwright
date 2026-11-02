@@ -162,6 +162,11 @@ export class RideController {
     return this.sample.tangent;
   }
 
+  /** Smoothed vertical g the ball feels; under 0.4 reads as airtime. */
+  get feltG(): number {
+    return this.gVertical;
+  }
+
   /** Effective speed in m/s. */
   get speed(): number {
     return this.paused ? 0 : this.state.v * this.effectiveMultiplier;

@@ -1,13 +1,9 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import manifestJson from '../../../public/models/scenic/manifest.json';
 import { creditFor, parseManifest } from './manifest';
 import { getWorld, nextWorldId, readyWorlds, SCENIC_WORLDS, worldFiles } from './worlds';
 
-const manifest = parseManifest(
-  JSON.parse(
-    readFileSync(new URL('../../../public/models/scenic/manifest.json', import.meta.url), 'utf8'),
-  ),
-);
+const manifest = parseManifest(manifestJson);
 
 describe('scenic world registry', () => {
   it('has unique ids, four ready worlds and one placeholder slot', () => {

@@ -6,6 +6,9 @@
   import Inspector from './components/Inspector.svelte';
   import LoadingScreen from './components/LoadingScreen.svelte';
   import Locker from './components/Locker.svelte';
+  import CreditsPanel from './components/CreditsPanel.svelte';
+  import ScenicLoadBar from './components/ScenicLoadBar.svelte';
+  import WorldCredit from './components/WorldCredit.svelte';
   import Pops from './components/Pops.svelte';
   import RideHud from './components/RideHud.svelte';
   import SummaryCard from './components/SummaryCard.svelte';
@@ -65,6 +68,15 @@
     {/if}
     {#if locker.open}
       <Locker {controller} />
+    {/if}
+    {#if ui.creditsOpen}
+      <CreditsPanel {controller} />
+    {/if}
+    {#if ui.scenicLoading}
+      <ScenicLoadBar />
+    {/if}
+    {#if ui.world}
+      <WorldCredit {controller} />
     {/if}
     <Toast />
   </div>

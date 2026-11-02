@@ -78,31 +78,43 @@ class Weather {
 
   constructor(scene: Scene, config: WeatherConfig) {
     const snow = config.kind === 'snow';
-    this.texture = snow
-      ? createSoftDiscTexture(scene, 'weatherDisc', 32)
-      : createRingSpriteTexture(scene, 'weatherRing', 32);
+    this.texture =
+      config.kind === 'bubbles'
+        ? createRingSpriteTexture(scene, 'weatherRing', 32)
+        : createSoftDiscTexture(scene, 'weatherDisc', 32);
     const system = new ParticleSystem('weather', 3500, scene);
     system.particleTexture = this.texture;
     system.emitter = this.emitter;
     system.isLocal = false;
     const reach = 46;
-    if (snow) {
-      system.minEmitBox = new Vector3(-reach, 12, -reach);
-      system.maxEmitBox = new Vector3(reach, 28, reach);
-      system.direction1 = new Vector3(-0.35, -1, -0.35);
-      system.direction2 = new Vector3(0.35, -1, 0.35);
-      system.blendMode = ParticleSystem.BLENDMODE_STANDARD;
-    } else {
-      system.minEmitBox = new Vector3(-reach, -14, -reach);
-      system.maxEmitBox = new Vector3(reach, 4, reach);
-      system.direction1 = new Vector3(-0.2, 1, -0.2);
-      system.direction2 = new Vector3(0.2, 1, 0.2);
-      system.blendMode = ParticleSystem.BLENDMODE_ADD;
+    switch (config.kind) {
+      case 'snow':
+        system.minEmitBox = new Vector3(-reach, 12, -reach);
+        system.maxEmitBox = new Vector3(reach, 28, reach);
+        system.direction1 = new Vector3(-0.35, -1, -0.35);
+        system.direction2 = new Vector3(0.35, -1, 0.35);
+        system.blendMode = ParticleSystem.BLENDMODE_STANDARD;
+        break;
+      case 'bubbles':
+        system.minEmitBox = new Vector3(-reach, -14, -reach);
+        system.maxEmitBox = new Vector3(reach, 4, reach);
+        system.direction1 = new Vector3(-0.2, 1, -0.2);
+        system.direction2 = new Vector3(0.2, 1, 0.2);
+        system.blendMode = ParticleSystem.BLENDMODE_ADD;
+        break;
+      case 'dust':
+        // Motes all around the camera, drifting any which way and glowing softly.
+        system.minEmitBox = new Vector3(-reach, -reach * 0.6, -reach);
+        system.maxEmitBox = new Vector3(reach, reach * 0.6, reach);
+        system.direction1 = new Vector3(-1, -1, -1);
+        system.direction2 = new Vector3(1, 1, 1);
+        system.blendMode = ParticleSystem.BLENDMODE_ADD;
+        break;
     }
     system.minEmitPower = config.speed[0];
     system.maxEmitPower = config.speed[1];
-    // Long enough to cross the box; particles die quietly out of view.
-    const span = 40 / config.speed[0];
+    // Long enough to cross the box; particles die quietly out of view. Slow dust just lingers.
+    const span = Math.min(24, 40 / config.speed[0]);
     system.minLifeTime = span * 0.8;
     system.maxLifeTime = span;
     system.addSizeGradient(0, config.size[0], config.size[1]);

@@ -19,6 +19,9 @@ export interface Prefs {
   volume: number;
   /** Whether the ambient music bed plays. */
   music: boolean;
+  /** The Scenic World to open next time, and its sky variant, or null for the theme. */
+  world: string | null;
+  worldSky: string | null;
 }
 
 function read(key: string): unknown {
@@ -67,6 +70,10 @@ export function loadPrefs(): Partial<Prefs> {
     prefs.volume = Math.min(1, Math.max(0, record.volume));
   }
   if (typeof record.music === 'boolean') prefs.music = record.music;
+  if (typeof record.world === 'string' || record.world === null) prefs.world = record.world;
+  if (typeof record.worldSky === 'string' || record.worldSky === null) {
+    prefs.worldSky = record.worldSky;
+  }
   return prefs;
 }
 

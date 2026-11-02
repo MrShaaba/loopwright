@@ -15,6 +15,7 @@ import { isUnlocked, nextUnlock } from '../engine/progress/unlocks';
 import { BALL_SKINS } from '../engine/ride/skins';
 import { TRAILS } from '../engine/ride/trails';
 import { cssColor } from './skinPreview';
+import { SCENIC_WORLDS } from '../engine/scenic/worlds';
 import { DEFAULT_STARTER_ID, getStarter, STARTERS } from '../engine/starters';
 import { DEFAULT_THEME_ID, getTheme, hasTheme, listThemes } from '../engine/theme';
 import type { ThemeConfig } from '../engine/theme/ThemeConfig';
@@ -33,7 +34,19 @@ export interface Controller {
   readonly isMac: boolean;
   readonly starters: readonly { id: string; name: string; tagline: string }[];
   readonly themes: readonly { id: string; name: string; tagline: string }[];
+  readonly worlds: readonly {
+    id: string;
+    name: string;
+    tagline: string;
+    status: 'ready' | 'placeholder';
+    skies: { id: string; name: string }[];
+  }[];
   setTheme: (id: string) => void;
+  enterWorld: (id: string, skyId?: string | null) => void;
+  leaveWorld: () => void;
+  cycleWorld: () => void;
+  openCredits: () => void;
+  closeCredits: () => void;
   rename: (name: string) => void;
   copyLink: () => Promise<void>;
   exportJson: () => void;
@@ -164,6 +177,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   if (prefs.skin) game.setSkin(prefs.skin);
   if (prefs.trail) game.setTrail(prefs.trail);
   if (prefs.volume !== undefined) game.ride.setVolume(prefs.volume);
+  const savedWorld = prefs.world ?? null;
+  const savedWorldSky = prefs.worldSky ?? null;
   // Music waits for the first ride or the music button: browsers need a gesture to start audio.
   if (prefs.music) game.audio.setMusicEnabled(true);
   ui.track = game.summary();
@@ -196,6 +211,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       trail: game.trailId,
       volume: game.audio.volume,
       music: game.audio.musicOn,
+      world: game.world?.id ?? null,
+      worldSky: game.worldSky?.id ?? null,
     });
   };
 
@@ -229,9 +246,19 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       ui.reducedMotion = reduced;
     }),
     game.events.on('theme', (next) => {
-      applyAccent(next.ui);
+      if (!game.world) applyAccent(next.ui);
       ui.theme = themeSummary(next);
       applyProgress(game.tracker.progress);
+    }),
+    game.events.on('world', (world) => {
+      applyAccent(world ? world.ui : game.theme.ui);
+      ui.world = world
+        ? { id: world.id, name: world.name, skyId: world.skyId, credits: world.credits }
+        : null;
+      persistPrefs();
+    }),
+    game.events.on('scenicLoading', (loading) => {
+      ui.scenicLoading = loading;
     }),
     game.events.on('cosmetics', ({ skin, trail }) => {
       locker.skin = skin;
@@ -405,7 +432,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     combo: 'Escape',
     label: 'Close the shortcuts panel, or leave the ride',
     handler: () => {
-      if (locker.open) closeLocker();
+      if (ui.creditsOpen) ui.creditsOpen = false;
+      else if (locker.open) closeLocker();
       else if (ui.howToOpen) closeHowToPlay();
       else if (ui.helpOpen) ui.helpOpen = false;
       else if (edit.addMenuOpen) edit.addMenuOpen = false;
@@ -415,7 +443,19 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     },
   });
 
-  game.modalOpen = () => ui.howToOpen || locker.open;
+  game.modalOpen = () => ui.howToOpen || locker.open || ui.creditsOpen;
+  const openCredits = (): void => {
+    ui.creditsOpen = true;
+    game.loader
+      .credits()
+      .then((credits) => {
+        ui.credits = credits;
+      })
+      .catch(() => {
+        ui.credits = [];
+        game.toast('The credits manifest could not be read');
+      });
+  };
   for (const combo of ['Enter', 'Space']) {
     game.keys.bind({
       scope: 'ride',
@@ -427,6 +467,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   }
   game.start();
   ui.phase = 'ready';
+  // A saved Scenic World downloads after the first frame, with its progress bar.
+  if (savedWorld) void game.enterWorld(savedWorld, savedWorldSky);
   if (shared) game.toast(`Opened a shared track: ${shared.name}`);
   if (import.meta.env.DEV) window.loopwright = game;
 
@@ -451,7 +493,26 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     isMac: /Mac|iPhone|iPad/i.test(navigator.userAgent),
     starters: STARTERS.map(({ id, name, tagline }) => ({ id, name, tagline })),
     themes: listThemes().map(({ id, name, tagline }) => ({ id, name, tagline })),
+    worlds: SCENIC_WORLDS.map(({ id, name, tagline, status, skies }) => ({
+      id,
+      name,
+      tagline,
+      status,
+      skies: skies.map((sky) => ({ id: sky.id, name: sky.name })),
+    })),
     setTheme: (id) => game.setTheme(id),
+    enterWorld: (id, skyId = null) => {
+      void game.enterWorld(id, skyId);
+    },
+    leaveWorld: () => {
+      game.leaveWorld();
+      game.toast(`Scenic world off: ${game.theme.name}`);
+    },
+    cycleWorld: () => game.cycleWorld(),
+    openCredits,
+    closeCredits: () => {
+      ui.creditsOpen = false;
+    },
     rename: (name) => game.rename(name),
     copyLink: async () => {
       const link = game.shareLink();

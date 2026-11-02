@@ -95,6 +95,7 @@ export class TubeView {
   private time = 0;
   private scroll = 0;
   private length = 1;
+  private supportsVisible = true;
 
   constructor(
     private readonly scene: Scene,
@@ -192,6 +193,13 @@ export class TubeView {
   }
 
   /** Meshes a click can land on; each carries the frames it was built from. */
+  /** Shows or hides the supports and feet; a tube in space has nothing to stand on. */
+  setSupportsVisible(visible: boolean): void {
+    this.supportsVisible = visible;
+    this.supportBase.isVisible = visible && this.supportBase.thinInstanceCount > 0;
+    this.footBase.isVisible = visible && this.footBase.thinInstanceCount > 0;
+  }
+
   get pickables(): readonly Mesh[] {
     return this.meshes.filter((mesh) => mesh.isPickable);
   }
@@ -257,6 +265,7 @@ export class TubeView {
     }
     this.placeRings(frames, ringSpacing);
     this.placeSupports(frames);
+    this.setSupportsVisible(this.supportsVisible);
   }
 
   private buildRun(

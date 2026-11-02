@@ -54,9 +54,9 @@ export interface FloorConfig {
   caustics?: { color: Color3; strength: number; scale: number };
 }
 
-/** Falling or rising particles around the camera. */
+/** Falling, rising or drifting particles around the camera. */
 export interface WeatherConfig {
-  kind: 'snow' | 'bubbles';
+  kind: 'snow' | 'bubbles' | 'dust';
   color: Color3;
   /** Particles per second. */
   rate: number;

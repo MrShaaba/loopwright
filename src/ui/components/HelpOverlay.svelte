@@ -61,6 +61,15 @@
         >
           How to play
         </button>
+        <button
+          class="button"
+          onclick={() => {
+            controller.toggleHelp();
+            controller.openCredits();
+          }}
+        >
+          Credits
+        </button>
         <button class="button icon" onclick={controller.toggleHelp} aria-label="Close">×</button>
       </div>
     </div>
