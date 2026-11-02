@@ -15,6 +15,10 @@ export interface Prefs {
   /** Equipped ball skin and trail ids. */
   skin: string;
   trail: string;
+  /** Master volume, 0 to 1. */
+  volume: number;
+  /** Whether the ambient music bed plays. */
+  music: boolean;
 }
 
 function read(key: string): unknown {
@@ -59,6 +63,10 @@ export function loadPrefs(): Partial<Prefs> {
   }
   if (typeof record.skin === 'string') prefs.skin = record.skin;
   if (typeof record.trail === 'string') prefs.trail = record.trail;
+  if (typeof record.volume === 'number' && Number.isFinite(record.volume)) {
+    prefs.volume = Math.min(1, Math.max(0, record.volume));
+  }
+  if (typeof record.music === 'boolean') prefs.music = record.music;
   return prefs;
 }
 

@@ -41,6 +41,10 @@ export interface RideStatus {
   laps: number;
   time: number;
   muted: boolean;
+  /** Master volume, 0 to 1. */
+  volume: number;
+  /** Whether the ambient music bed is on. */
+  music: boolean;
   view: RideView;
   /** Smoothed vertical g felt by the ball; 1 on level track, under 0.4 reads as airtime. */
   gVertical: number;
@@ -281,6 +285,18 @@ export class RideController {
     return this.audio.muted;
   }
 
+  setVolume(volume: number): void {
+    this.audio.setVolume(volume);
+    this.emitStatus();
+  }
+
+  /** Turns the ambient bed on or off. Returns the new state. */
+  toggleMusic(): boolean {
+    this.audio.setMusicEnabled(!this.audio.musicOn);
+    this.emitStatus();
+    return this.audio.musicOn;
+  }
+
   update(dt: number): void {
     if (!this.active) return;
     const target = this.boostHeld ? BOOST_FACTOR : 1;
@@ -353,6 +369,8 @@ export class RideController {
       laps: this.state.laps,
       time: this.state.time,
       muted: this.audio.muted,
+      volume: this.audio.volume,
+      music: this.audio.musicOn,
       view: this.camera.view,
       gVertical: this.gVertical,
       phase: this.state.phase,

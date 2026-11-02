@@ -57,4 +57,27 @@ export const hauntedHollow: ThemeConfig = {
   },
   ball: { color: new Color3(1.0, 0.56, 0.16), light: 1.6 },
   ui: { accent: '#ffa63e', accentSoft: 'rgba(255, 166, 62, 0.16)', accentText: '#ffd9a8' },
+  music: {
+    root: 146.83,
+    scale: [0, 2, 3, 6, 7, 8, 11],
+    drone: {
+      wave: 'sawtooth',
+      layers: [0.5, 1],
+      detune: 7,
+      cutoff: 420,
+      lfoRate: 0.05,
+      lfoDepth: 180,
+      gain: 0.12,
+    },
+    melody: {
+      wave: 'sine',
+      interval: [3, 7],
+      octave: 2,
+      attack: 0.9,
+      release: 3,
+      gain: 0.06,
+      glide: 0,
+      echo: 0.6,
+    },
+  },
 };

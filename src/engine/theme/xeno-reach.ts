@@ -64,4 +64,27 @@ export const xenoReach: ThemeConfig = {
   },
   ball: { color: new Color3(0.95, 0.4, 1.0), light: 1.5 },
   ui: { accent: '#5df0dc', accentSoft: 'rgba(93, 240, 220, 0.16)', accentText: '#c8fff6' },
+  music: {
+    root: 164.81,
+    scale: [0, 2, 4, 6, 7, 9, 11],
+    drone: {
+      wave: 'sawtooth',
+      layers: [0.5, 1, 2],
+      detune: 9,
+      cutoff: 1400,
+      lfoRate: 0.18,
+      lfoDepth: 900,
+      gain: 0.1,
+    },
+    melody: {
+      wave: 'square',
+      interval: [1.2, 3],
+      octave: 2,
+      attack: 0.05,
+      release: 1.6,
+      gain: 0.045,
+      glide: 0,
+      echo: 0.38,
+    },
+  },
 };

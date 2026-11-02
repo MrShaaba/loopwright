@@ -49,6 +49,8 @@ export interface Controller {
   nudgeMultiplier: (direction: 1 | -1) => void;
   togglePause: () => void;
   toggleMute: () => void;
+  setVolume: (volume: number) => void;
+  toggleMusic: () => void;
   cycleView: () => void;
   toggleEndless: () => void;
   restartRide: () => void;
@@ -161,6 +163,9 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   if (prefs.playMode) game.setPlayMode(prefs.playMode);
   if (prefs.skin) game.setSkin(prefs.skin);
   if (prefs.trail) game.setTrail(prefs.trail);
+  if (prefs.volume !== undefined) game.ride.setVolume(prefs.volume);
+  // Music waits for the first ride or the music button: browsers need a gesture to start audio.
+  if (prefs.music) game.audio.setMusicEnabled(true);
   ui.track = game.summary();
   locker.skin = game.skinId;
   locker.trail = game.trailId;
@@ -189,6 +194,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       playMode: game.game.mode,
       skin: game.skinId,
       trail: game.trailId,
+      volume: game.audio.volume,
+      music: game.audio.musicOn,
     });
   };
 
@@ -246,6 +253,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       ride.laps = status.laps;
       ride.time = status.time;
       ride.muted = status.muted;
+      ride.volume = status.volume;
+      ride.music = status.music;
       ride.view = status.view;
       ride.gVertical = status.gVertical;
       ride.phase = status.phase;
@@ -257,6 +266,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   ];
   ride.multiplier = game.ride.multiplier;
   ride.muted = game.audio.muted;
+  ride.volume = game.audio.volume;
+  ride.music = game.audio.musicOn;
   edit.defs = listSectionDefs().map((def) => ({
     type: def.type,
     label: def.label,
@@ -488,6 +499,14 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     },
     toggleMute: () => {
       game.ride.toggleMute();
+      persistPrefs();
+    },
+    setVolume: (volume) => {
+      game.ride.setVolume(volume);
+      persistPrefs();
+    },
+    toggleMusic: () => {
+      game.ride.toggleMusic();
       persistPrefs();
     },
     cycleView: () => {

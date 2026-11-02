@@ -48,7 +48,20 @@ describe('themes', () => {
     // A theme has no say over the track or the ride: only looks live in it.
     for (const theme of listThemes()) {
       expect(Object.keys(theme).sort()).toEqual(
-        ['ball', 'floor', 'fog', 'id', 'lighting', 'name', 'props', 'sky', 'tagline', 'tube', 'ui']
+        [
+          'ball',
+          'floor',
+          'fog',
+          'id',
+          'lighting',
+          'music',
+          'name',
+          'props',
+          'sky',
+          'tagline',
+          'tube',
+          'ui',
+        ]
           .filter((key) => key !== 'props' || theme.props !== undefined)
           .sort(),
       );

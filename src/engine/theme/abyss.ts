@@ -85,4 +85,27 @@ export const abyss: ThemeConfig = {
       glow: new Color3(0.08, 0.18, 0.22),
     },
   },
+  music: {
+    root: 55,
+    scale: [0, 3, 5, 7, 10],
+    drone: {
+      wave: 'sine',
+      layers: [1, 2],
+      detune: 2,
+      cutoff: 300,
+      lfoRate: 0.04,
+      lfoDepth: 120,
+      gain: 0.2,
+    },
+    melody: {
+      wave: 'sine',
+      interval: [4, 9],
+      octave: 4,
+      attack: 1.5,
+      release: 4,
+      gain: 0.05,
+      glide: 1.2,
+      echo: 0.7,
+    },
+  },
 };

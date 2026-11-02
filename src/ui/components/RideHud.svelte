@@ -18,6 +18,11 @@
     controller.setMultiplier(Number(input.value));
   }
 
+  function onVolume(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    controller.setVolume(Number(input.value));
+  }
+
   function hold(direction: number): (event: PointerEvent) => void {
     return (event) => {
       event.preventDefault();
@@ -236,10 +241,31 @@
       <button class="button" onclick={() => controller.toggleMute()} aria-pressed={ride.muted}>
         {ride.muted ? 'Unmute' : 'Mute'} <span class="kbd">M</span>
       </button>
+      <button
+        class="button"
+        class:on={ride.music}
+        onclick={() => controller.toggleMusic()}
+        aria-pressed={ride.music}
+        title="Ambient music for this theme"
+      >
+        Music {ride.music ? 'on' : 'off'} <span class="kbd">N</span>
+      </button>
       <button class="button" onclick={() => controller.requestMode('edit')}>
         Edit <span class="kbd">Esc</span>
       </button>
     </div>
+    <label class="slider volume">
+      <span class="label">Volume <strong>{Math.round(ride.volume * 100)}%</strong></span>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        value={ride.volume}
+        oninput={onVolume}
+        aria-label="Master volume"
+      />
+    </label>
   </div>
 </div>
 
@@ -590,6 +616,11 @@
     margin: 0;
     color: var(--muted);
     font-size: 12px;
+  }
+
+  .volume {
+    padding-top: 2px;
+    border-top: 1px solid var(--line);
   }
 
   .buttons {

@@ -280,6 +280,7 @@ export class Game {
     atmosphere.glow.addExcludedMesh(ball.halo);
     const trail = new Trail(scene);
     const audio = new AudioEngine();
+    audio.setMusic(theme.music);
     const ride = new RideController(compiled, ball, rideCamera, audio, tube);
 
     await report('Compiling shaders', 0.9);
@@ -651,6 +652,7 @@ export class Game {
     this.tube.restyle(theme.tube, theme.fog);
     this.ball.restyle(theme.ball);
     this.trail.setBallColor(theme.ball.color);
+    this.audio.setMusic(theme.music);
     this.doc = createTrackDoc(this.doc.name, theme.id, this.doc.sections, this.doc.seed);
     this.items.restyle(this.itemPalette());
     this.game.setThemeId(theme.id);
@@ -891,6 +893,15 @@ export class Game {
       combo: 'KeyM',
       label: 'Mute or unmute sound',
       handler: () => this.toast(this.ride.toggleMute() ? 'Sound muted' : 'Sound on'),
+    });
+    this.keys.bind({
+      scope: 'global',
+      combo: 'KeyN',
+      label: 'Music on or off',
+      handler: () => {
+        this.toast(this.ride.toggleMusic() ? `Music on: ${this.theme.name}` : 'Music off');
+        this.events.emit('padInput', 'multiplier');
+      },
     });
     this.keys.bind({
       scope: 'global',

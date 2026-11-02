@@ -1,4 +1,6 @@
 import { clamp } from '../util/math';
+import type { MusicSpec } from './music';
+import { MusicBed } from './MusicBed';
 
 /** Speed at which wind and roll reach full strength, m/s. */
 const FULL_SPEED = 32;
@@ -43,10 +45,25 @@ export class AudioEngine {
   private rollFilter: BiquadFilterNode | null = null;
   private rollOsc: OscillatorNode | null = null;
   private fx: GainNode | null = null;
+  private musicBus: GainNode | null = null;
+  private bed: MusicBed | null = null;
+  private spec: MusicSpec | null = null;
   private mutedFlag = false;
+  private musicFlag = false;
+  private volumeLevel = 0.8;
 
   get muted(): boolean {
     return this.mutedFlag;
+  }
+
+  /** Whether the ambient bed plays. Off by default. */
+  get musicOn(): boolean {
+    return this.musicFlag;
+  }
+
+  /** Master volume, 0 to 1. */
+  get volume(): number {
+    return this.volumeLevel;
   }
 
   get ready(): boolean {
@@ -62,13 +79,18 @@ export class AudioEngine {
     const context = new AudioContext();
     this.context = context;
     const master = context.createGain();
-    master.gain.value = this.mutedFlag ? 0 : 1;
+    master.gain.value = this.masterLevel();
     master.connect(context.destination);
     this.master = master;
     const fx = context.createGain();
     fx.gain.value = 0.9;
     fx.connect(master);
     this.fx = fx;
+    const musicBus = context.createGain();
+    musicBus.gain.value = 1;
+    musicBus.connect(master);
+    this.musicBus = musicBus;
+    this.syncMusic();
 
     // Wind: white noise through a band-pass whose centre rises with speed.
     const wind = loopSource(context, noiseBuffer(context, 2, false));
@@ -226,11 +248,51 @@ export class AudioEngine {
     burst.stop(t + 0.2);
   }
 
+  private masterLevel(): number {
+    return this.mutedFlag ? 0 : this.volumeLevel;
+  }
+
+  private applyMaster(): void {
+    if (this.context && this.master) {
+      this.master.gain.setTargetAtTime(this.masterLevel(), this.context.currentTime, 0.05);
+    }
+  }
+
   setMuted(muted: boolean): void {
     this.mutedFlag = muted;
-    if (this.context && this.master) {
-      this.master.gain.setTargetAtTime(muted ? 0 : 1, this.context.currentTime, 0.05);
+    this.applyMaster();
+  }
+
+  setVolume(volume: number): void {
+    this.volumeLevel = clamp(volume, 0, 1);
+    this.applyMaster();
+  }
+
+  /** Picks the bed for the current theme; it starts when music is on and the context exists. */
+  setMusic(spec: MusicSpec): void {
+    if (spec === this.spec) return;
+    this.spec = spec;
+    this.syncMusic();
+  }
+
+  /** Turns the bed on or off. Call from a user gesture the first time, so the context can start. */
+  setMusicEnabled(on: boolean): void {
+    this.musicFlag = on;
+    if (on && !this.context) this.start();
+    this.syncMusic();
+  }
+
+  /** Starts, swaps or fades the bed so it matches the flag and the theme. */
+  private syncMusic(): void {
+    const context = this.context;
+    const bus = this.musicBus;
+    if (!context || !bus) return;
+    const wanted = this.musicFlag ? this.spec : null;
+    if (this.bed) {
+      this.bed.stop(1.2);
+      this.bed = null;
     }
+    if (wanted) this.bed = new MusicBed(context, bus, wanted);
   }
 
   /** Fades everything out, for leaving ride mode or pausing. */
@@ -239,6 +301,8 @@ export class AudioEngine {
   }
 
   dispose(): void {
+    this.bed?.stop(0.05);
+    this.bed = null;
     void this.context?.close();
     this.context = null;
   }

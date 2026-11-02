@@ -1,4 +1,5 @@
 import type { Color3 } from '@babylonjs/core/Maths/math.color';
+import type { MusicSpec } from '../audio/music';
 
 export interface MoonSpec {
   azimuthDeg: number;
@@ -165,4 +166,6 @@ export interface ThemeConfig {
   ball: BallStyle;
   ui: UiAccent;
   props?: PropConfig;
+  /** The synthesised ambient bed that plays under this look when music is on. */
+  music: MusicSpec;
 }

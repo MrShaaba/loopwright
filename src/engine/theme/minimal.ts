@@ -49,4 +49,27 @@ export const minimal: ThemeConfig = {
   },
   ball: { color: new Color3(1.0, 0.82, 0.48), light: 1.4 },
   ui: { accent: '#6fc3ff', accentSoft: 'rgba(111, 195, 255, 0.16)', accentText: '#cfeaff' },
+  music: {
+    root: 220,
+    scale: [0, 3, 5, 7, 10],
+    drone: {
+      wave: 'sine',
+      layers: [0.5, 1],
+      detune: 4,
+      cutoff: 900,
+      lfoRate: 0.08,
+      lfoDepth: 220,
+      gain: 0.16,
+    },
+    melody: {
+      wave: 'triangle',
+      interval: [2.5, 5],
+      octave: 2,
+      attack: 0.6,
+      release: 2.4,
+      gain: 0.07,
+      glide: 0,
+      echo: 0.45,
+    },
+  },
 };

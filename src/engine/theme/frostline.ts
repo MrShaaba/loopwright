@@ -88,4 +88,27 @@ export const frostline: ThemeConfig = {
       size: 0.22,
     },
   },
+  music: {
+    root: 261.63,
+    scale: [0, 2, 4, 7, 9],
+    drone: {
+      wave: 'sine',
+      layers: [0.5, 1],
+      detune: 3,
+      cutoff: 1200,
+      lfoRate: 0.06,
+      lfoDepth: 150,
+      gain: 0.12,
+    },
+    melody: {
+      wave: 'sine',
+      interval: [1.5, 3.5],
+      octave: 2,
+      attack: 0.01,
+      release: 2.8,
+      gain: 0.08,
+      glide: 0,
+      echo: 0.5,
+    },
+  },
 };

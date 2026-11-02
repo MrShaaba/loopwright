@@ -13,6 +13,8 @@ export interface RideUiState {
   laps: number;
   time: number;
   muted: boolean;
+  volume: number;
+  music: boolean;
   view: RideView;
   gVertical: number;
   phase: RidePhase;
@@ -32,6 +34,8 @@ export const ride: RideUiState = $state({
   laps: 0,
   time: 0,
   muted: false,
+  volume: 0.8,
+  music: false,
   view: 'inside',
   gVertical: 1,
   phase: 'running',
