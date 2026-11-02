@@ -47,6 +47,8 @@ locker (`L`), which also lists eighteen achievements, from the first gem to a pe
 and a lap in every theme. Progress stays in localStorage like everything else. A gamepad works
 out of the box: the stick steers, the triggers change speed, A boosts.
 
+![The track editor: the Flow track in the default Minimal look, each section a card with its own sliders](docs/editor.jpg)
+
 ## Stack
 
 - [Babylon.js 9](https://www.babylonjs.com/) for the 3D engine, WebGL2
@@ -58,7 +60,7 @@ out of the box: the stick steers, the triggers change speed, A boosts.
 
 All geometry is generated from the track frames and Babylon primitives. The tube is a custom mesh
 with an additive glass shader; the ball, rings and supports are procedural. Nothing is downloaded
-beyond the app itself.
+beyond the app itself; the Scenic Worlds' compressed models ship inside it.
 
 ## Run it
 
@@ -129,6 +131,8 @@ timed and the best lap is kept per track.
   District. It is off by default; `N` or the Music button turns it on and it follows theme
   changes.
 
+![The locker: ball skins unlocked by gems, with trails and achievements in the other tabs](docs/locker.jpg)
+
 ## Rewards
 
 - Gems count across every track, the moment they are collected. Nine ball skins (Lattice,
@@ -171,6 +175,12 @@ while a world is active.
   3x from inside the tube: an average frame of 16.7 ms with the 95th percentile between 18 and 19
   ms, and the render scale never drops.
 - The meshopt decoder ships with the app in `public/decoders/`, so nothing loads from a CDN.
+
+![Nebula Drift: riding through rings at 71 km/h under the nebula sky](docs/scenic-nebula.jpg)
+
+![Snowfield from the editor: the track lifted clear above the snowy terrain](docs/scenic-snowfield.jpg)
+
+![Snowfield from inside the tube: a ring ahead and a loop and tunnel on the hillside](docs/scenic-snowfield-ride.jpg)
 
 ## Accessibility
 
