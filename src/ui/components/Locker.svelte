@@ -10,7 +10,17 @@
   const tabs: { id: LockerTab; label: string }[] = [
     { id: 'ball', label: 'Ball' },
     { id: 'trail', label: 'Trail' },
+    { id: 'achievements', label: 'Achievements' },
   ];
+
+  const earnedCount = $derived(locker.achievements.filter((a) => a.earned !== null).length);
+
+  function when(iso: string): string {
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime())
+      ? ''
+      : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  }
 
   function preview(
     canvas: HTMLCanvasElement,
@@ -58,6 +68,9 @@
           onclick={() => controller.setLockerTab(tab.id)}
         >
           {tab.label}
+          {#if tab.id === 'achievements'}
+            <span class="count">{earnedCount}/{locker.achievements.length}</span>
+          {/if}
         </button>
       {/each}
     </div>
@@ -123,6 +136,25 @@
           </button>
         {/each}
       </div>
+    {:else}
+      <ul class="achievements">
+        {#each locker.achievements as achievement (achievement.id)}
+          <li class="achievement" class:earned={achievement.earned !== null}>
+            <span class="star" aria-hidden="true">★</span>
+            <span class="achievement-body">
+              <span class="name">{achievement.name}</span>
+              <span class="description">{achievement.description}</span>
+            </span>
+            <span class="date">
+              {#if achievement.earned}
+                {when(achievement.earned)}
+              {:else}
+                Locked
+              {/if}
+            </span>
+          </li>
+        {/each}
+      </ul>
     {/if}
     <p class="hint">
       Gems count across every track. Ride in Game mode and hunt the three on each track.
@@ -328,6 +360,80 @@
 
   .card.equipped .status {
     color: var(--accent-text);
+  }
+
+  .count {
+    margin-left: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+  }
+
+  .tab.active .count {
+    color: var(--accent-text);
+  }
+
+  .achievements {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 6px;
+  }
+
+  .achievement {
+    display: grid;
+    grid-template-columns: 30px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 12px 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--muted);
+  }
+
+  .achievement.earned {
+    color: var(--text);
+    border-color: var(--line-strong);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .star {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  .achievement.earned .star {
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+
+  .achievement-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .achievement .description {
+    min-height: 0;
+  }
+
+  .date {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
   }
 
   .hint {

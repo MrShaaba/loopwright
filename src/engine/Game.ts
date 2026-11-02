@@ -28,7 +28,7 @@ import { Floor } from './scene/Floor';
 import { Lighting } from './scene/Lighting';
 import { PerformanceGovernor, type PerformanceSample } from './scene/Performance';
 import { Sky } from './scene/Sky';
-import { getTheme, hasTheme, nextThemeId } from './theme';
+import { getTheme, hasTheme, listThemes, nextThemeId } from './theme';
 import type { ThemeConfig } from './theme/ThemeConfig';
 import {
   compileTrack,
@@ -128,7 +128,7 @@ export class Game {
   readonly trail: Trail;
   readonly audio: AudioEngine;
   readonly ride: RideController;
-  readonly tracker = new ProgressTracker();
+  readonly tracker = new ProgressTracker({ themeCount: listThemes().length });
   readonly edit: EditController;
   readonly items: ItemView;
   readonly ghostView: GhostView;

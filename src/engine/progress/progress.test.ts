@@ -40,6 +40,7 @@ function lap(overrides: Partial<LapRecord> = {}): LapRecord {
     hazardsTotal: 4,
     trackKey: 'track-a',
     themeId: 'minimal',
+    multiplier: 1,
     beatGhost: false,
     ...overrides,
   };

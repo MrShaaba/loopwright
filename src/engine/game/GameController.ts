@@ -155,6 +155,7 @@ export class GameController {
       hazardsTotal: this.hazardsTotal,
       trackKey: this.trackKey,
       themeId: this.themeId,
+      multiplier: this.maxMultiplier,
       beatGhost,
     };
   }

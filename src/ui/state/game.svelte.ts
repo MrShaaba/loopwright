@@ -15,7 +15,7 @@ export interface UiState {
   helpOpen: boolean;
   howToOpen: boolean;
   reducedMotion: boolean;
-  toast: { text: string; id: number };
+  toast: { text: string; id: number; kind?: 'achievement'; title?: string };
 }
 
 /** Rune state shared by every HUD component. Only the bridge writes engine-derived fields. */

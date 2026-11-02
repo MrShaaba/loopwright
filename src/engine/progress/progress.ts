@@ -121,6 +121,8 @@ export interface LapRecord {
   hazardsTotal: number;
   trackKey: string;
   themeId: string;
+  /** Highest speed multiplier used in the lap, slider times Shift boost. */
+  multiplier: number;
   /** Time Attack only: this lap beat an existing ghost. */
   beatGhost: boolean;
 }

@@ -19,6 +19,14 @@ export interface LockerTrail extends LockerItem {
   swatch: [string, string] | null;
 }
 
+export interface LockerAchievement {
+  id: string;
+  name: string;
+  description: string;
+  /** ISO date earned, or null while locked. */
+  earned: string | null;
+}
+
 export interface LockerState {
   open: boolean;
   tab: LockerTab;
@@ -32,6 +40,7 @@ export interface LockerState {
   trail: string;
   /** What the next gem unlocks, or null once everything is open. */
   next: { name: string; kind: string; remaining: number } | null;
+  achievements: LockerAchievement[];
 }
 
 export const locker: LockerState = $state({
@@ -45,4 +54,5 @@ export const locker: LockerState = $state({
   skin: 'lattice',
   trail: 'none',
   next: null,
+  achievements: [],
 });

@@ -9,6 +9,7 @@ import {
   markHowToPlaySeen,
   savePrefs,
 } from '../engine/save/storage';
+import { ACHIEVEMENTS } from '../engine/progress/achievements';
 import type { Progress } from '../engine/progress/progress';
 import { isUnlocked, nextUnlock } from '../engine/progress/unlocks';
 import { BALL_SKINS } from '../engine/ride/skins';
@@ -131,6 +132,13 @@ function applyProgress(progress: Progress): void {
     : null;
 }
 
+function applyAchievements(earned: ReadonlyMap<string, string>): void {
+  locker.achievements = ACHIEVEMENTS.map((achievement) => ({
+    ...achievement,
+    earned: earned.get(achievement.id) ?? null,
+  }));
+}
+
 /** Boots the engine on the canvas and wires its events into the rune state. */
 export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   const starter = getStarter(DEFAULT_STARTER_ID);
@@ -157,6 +165,20 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   locker.skin = game.skinId;
   locker.trail = game.trailId;
   applyProgress(game.tracker.progress);
+  applyAchievements(game.tracker.earned);
+
+  // Achievements can land several at once; show them one after another.
+  let toastSlot = 0;
+  const announce = (title: string, text: string): void => {
+    const at = Math.max(Date.now(), toastSlot);
+    toastSlot = at + 2800;
+    setTimeout(
+      () => {
+        ui.toast = { text, title, kind: 'achievement', id: ui.toast.id + 1 };
+      },
+      Math.max(0, at - Date.now()),
+    );
+  };
 
   const persistPrefs = (): void => {
     savePrefs({
@@ -209,6 +231,10 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       locker.trail = trail;
     }),
     game.tracker.events.on('progress', applyProgress),
+    game.tracker.events.on('achievement', (achievement) => {
+      applyAchievements(game.tracker.earned);
+      announce(`Achievement: ${achievement.name}`, achievement.description);
+    }),
     game.ride.events.on('status', (status) => {
       ride.speed = status.speed * 3.6;
       ride.baseSpeed = status.baseSpeed * 3.6;
