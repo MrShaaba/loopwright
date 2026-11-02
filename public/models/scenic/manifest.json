@@ -1,0 +1,72 @@
+{
+  "generated": "2026-11-02T13:28:51.381Z",
+  "modified": "compressed and resized for real-time use",
+  "files": [
+    {
+      "file": "alien-space-nebula-1.glb",
+      "title": "Alien Space Nebula 1 (Skybox)",
+      "author": "Jungle Jim",
+      "authorUrl": "https://sketchfab.com/jungle_jim",
+      "source": "https://sketchfab.com/3d-models/alien-space-nebula-1-skybox-4a4e7aec37c04320a09ac4c7434b8810",
+      "license": "CC BY 4.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+      "modified": "compressed and resized for real-time use",
+      "bytes": 218436
+    },
+    {
+      "file": "alien-space-nebula-2.glb",
+      "title": "Alien Space Nebula 2 (Skybox)",
+      "author": "Jungle Jim",
+      "authorUrl": "https://sketchfab.com/jungle_jim",
+      "source": "https://sketchfab.com/3d-models/alien-space-nebula-2-skybox-a1c688c6e8164fd4ad5a7e56047e8b50",
+      "license": "CC BY 4.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+      "modified": "compressed and resized for real-time use",
+      "bytes": 392176
+    },
+    {
+      "file": "deep-space.glb",
+      "title": "Deep Space skybox",
+      "author": "Jungle Jim",
+      "authorUrl": "https://sketchfab.com/jungle_jim",
+      "source": "https://sketchfab.com/3d-models/deep-space-skybox-2d87bae35cff40598c859f2163b4b3b0",
+      "license": "CC BY 4.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+      "modified": "compressed and resized for real-time use",
+      "bytes": 759228
+    },
+    {
+      "file": "alien-planet-landscape.glb",
+      "title": "Landscape of an alien planet (Skybox)",
+      "author": "Jungle Jim",
+      "authorUrl": "https://sketchfab.com/jungle_jim",
+      "source": "https://sketchfab.com/3d-models/landscape-of-an-alien-planet-skybox-676c023d919344efbfa9876c85db7d11",
+      "license": "CC BY 4.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+      "modified": "compressed and resized for real-time use",
+      "bytes": 745452
+    },
+    {
+      "file": "need-some-space.glb",
+      "title": "Need some space?",
+      "author": "Loïc Norgeot",
+      "authorUrl": "https://sketchfab.com/norgeotloic",
+      "source": "https://sketchfab.com/3d-models/need-some-space-d6521362b37b48e3a82bce4911409303",
+      "license": "CC BY 4.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+      "modified": "compressed and resized for real-time use",
+      "bytes": 434760
+    },
+    {
+      "file": "snowy-terrain.glb",
+      "title": "Snowy-terrain",
+      "author": "Kubocarte",
+      "authorUrl": "https://sketchfab.com/Kubocarte",
+      "source": "https://sketchfab.com/3d-models/snowy-terrain-eef014b3a7dd4056a2481234e5b64f74",
+      "license": "CC BY 4.0",
+      "licenseUrl": "http://creativecommons.org/licenses/by/4.0/",
+      "modified": "compressed and resized for real-time use",
+      "bytes": 2330968
+    }
+  ]
+}
