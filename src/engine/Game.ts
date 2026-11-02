@@ -750,7 +750,7 @@ export class Game {
    */
   async enterWorld(id: string, skyId: string | null = null): Promise<boolean> {
     const world = getWorld(id);
-    if (!world || world.status !== 'ready') {
+    if (world?.status !== 'ready') {
       this.toast('That world has no model yet');
       return false;
     }

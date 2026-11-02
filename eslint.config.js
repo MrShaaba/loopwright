@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint';
 import svelteConfig from './svelte.config.js';
 
 export default defineConfig([
-  globalIgnores(['dist/', 'node_modules/', 'coverage/']),
+  globalIgnores(['dist/', 'node_modules/', 'coverage/', 'public/decoders/']),
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
   tseslint.configs.stylisticTypeChecked,

@@ -3,3 +3,5 @@ dist/
 package-lock.json
 coverage/
 BRIEF.md
+# Vendored meshopt decoder, kept exactly as published
+public/decoders/
