@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Controller } from '../bridge';
   import { ui } from '../state/game.svelte';
+  import { locker } from '../state/locker.svelte';
   import SharePanel from './SharePanel.svelte';
 
   let { controller }: { controller: Controller } = $props();
@@ -119,6 +120,15 @@
           · {ui.renderScale}×</span
         >{/if}
     </span>
+    <button
+      class="button locker-button"
+      onclick={controller.toggleLocker}
+      aria-pressed={locker.open}
+      title="Locker: skins, trails and achievements (L)"
+    >
+      <span class="gem" aria-hidden="true">◆</span>
+      {locker.gems}
+    </button>
     <div class="share-wrap">
       <button
         class="button"
@@ -336,6 +346,18 @@
 
   .share-wrap {
     position: relative;
+  }
+
+  .locker-button {
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  .locker-button .gem {
+    color: #ffb8ff;
+    text-shadow: 0 0 8px #ff6ef5;
+    font-family: var(--font);
   }
 
   .menu-item.current {

@@ -10,10 +10,11 @@ import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import { CreateSphere } from '@babylonjs/core/Meshes/Builders/sphereBuilder';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { Scene } from '@babylonjs/core/scene';
-import { createBallTexture, createGlowTexture } from '../scene/textures';
+import { createGlowTexture, createSkinTexture } from '../scene/textures';
 import type { BallStyle } from '../theme/ThemeConfig';
 import { TUBE_RADIUS } from '../tube/TubeView';
 import type { TrackSample } from './BallPhysics';
+import { DEFAULT_SKIN_ID, getSkin, type SkinPattern } from './skins';
 
 export const BALL_RADIUS = 0.42;
 /** The ball rolls on the tube wall rather than floating at its centre. */
@@ -38,6 +39,9 @@ export class Ball {
   readonly halo: Mesh;
   readonly light: PointLight;
   readonly color = new Color3(1, 1, 1);
+  /** The pattern painted on the ball; the colour always comes from the theme. */
+  pattern: SkinPattern = getSkin(DEFAULT_SKIN_ID).pattern;
+  private style: BallStyle;
   private readonly material: StandardMaterial;
   private readonly haloMaterial: StandardMaterial;
   private texture: DynamicTexture | null = null;
@@ -50,6 +54,7 @@ export class Ball {
     private readonly scene: Scene,
     style: BallStyle,
   ) {
+    this.style = style;
     this.mesh = CreateSphere('ball', { diameter: BALL_RADIUS * 2, segments: 28 }, scene);
     this.mesh.isPickable = false;
     this.mesh.rotationQuaternion = Quaternion.Identity();
@@ -75,9 +80,10 @@ export class Ball {
   }
 
   restyle(style: BallStyle): void {
+    this.style = style;
     this.color.copyFrom(style.color);
     this.texture?.dispose();
-    this.texture = createBallTexture(this.scene, 'ballTexture', 256, style.color);
+    this.texture = createSkinTexture(this.scene, 'ballTexture', 256, this.pattern, style.color);
     this.material.diffuseColor = style.color.scale(0.35);
     this.material.emissiveTexture = this.texture;
     this.light.diffuse = style.color;
@@ -92,6 +98,13 @@ export class Ball {
     );
     this.haloMaterial.emissiveTexture = this.haloTexture;
     this.haloMaterial.opacityTexture = this.haloTexture;
+  }
+
+  /** Repaints the ball with another skin pattern, keeping the theme's colour and light. */
+  setPattern(pattern: SkinPattern): void {
+    if (pattern === this.pattern) return;
+    this.pattern = pattern;
+    this.restyle(this.style);
   }
 
   get position(): Vector3 {

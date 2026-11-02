@@ -1,5 +1,6 @@
 import type { CameraMode } from '../../engine/camera/CameraRig';
 import type { GameMode, LoadProgress, TrackSummary } from '../../engine/Game';
+import type { Rgb } from '../../engine/ride/skins';
 
 export interface UiState {
   phase: 'loading' | 'ready' | 'error';
@@ -9,7 +10,7 @@ export interface UiState {
   cameraMode: CameraMode;
   fps: number;
   renderScale: number;
-  theme: { id: string; name: string; tagline: string };
+  theme: { id: string; name: string; tagline: string; ball: Rgb };
   track: TrackSummary;
   helpOpen: boolean;
   howToOpen: boolean;
@@ -26,7 +27,7 @@ export const ui: UiState = $state({
   cameraMode: 'orbit',
   fps: 0,
   renderScale: 1,
-  theme: { id: '', name: '', tagline: '' },
+  theme: { id: '', name: '', tagline: '', ball: [1, 1, 1] },
   track: { name: '', length: 0, sections: 0, seed: 1 },
   helpOpen: false,
   howToOpen: false,

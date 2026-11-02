@@ -2,6 +2,7 @@ import { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTextur
 import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import type { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Scene } from '@babylonjs/core/scene';
+import { skinPixel, type Rgb, type SkinPattern } from '../ride/skins';
 import { clamp, smoothstep } from '../util/math';
 import { fbm2 } from '../util/noise';
 
@@ -161,28 +162,49 @@ export function createMoonTexture(
   });
 }
 
-/** A glowing ball skin: a bright dotted lattice on a dimmer base so the roll reads. */
-export function createBallTexture(
+/** A glowing ball skin painted from the pure skin function, tinted with the theme's ball colour. */
+export function createSkinTexture(
   scene: Scene,
   name: string,
   size: number,
+  pattern: SkinPattern,
   color: Color3,
 ): DynamicTexture {
-  const cells = 8;
+  const base: Rgb = [color.r, color.g, color.b];
   const texture = paint(scene, name, size, true, (x, y, px) => {
-    const u = (x / size) * cells;
-    const v = (y / size) * cells;
-    const cu = u - Math.floor(u) - 0.5;
-    const cv = v - Math.floor(v) - 0.5;
-    const d = Math.hypot(cu, cv);
-    const dot = smoothstep(0.34, 0.2, d);
-    const band = smoothstep(0.06, 0.02, Math.abs(cv)) * 0.35;
-    const f = 0.28 + 1.1 * Math.max(dot, band);
-    px.r = color.r * f;
-    px.g = color.g * f;
-    px.b = color.b * f;
+    skinPixel(pattern, (x + 0.5) / size, (y + 0.5) / size, base, px);
   });
   texture.wrapU = Texture.WRAP_ADDRESSMODE;
   texture.wrapV = Texture.WRAP_ADDRESSMODE;
+  return texture;
+}
+
+/** A thin bright ring with a soft edge, for bubble particles. */
+export function createRingSpriteTexture(scene: Scene, name: string, size: number): DynamicTexture {
+  const half = size / 2;
+  const texture = paint(scene, name, size, false, (x, y, px) => {
+    const d = Math.hypot(x - half + 0.5, y - half + 0.5) / half;
+    const a = smoothstep(0.16, 0.04, Math.abs(d - 0.78)) + 0.12 * smoothstep(0.78, 0.2, d);
+    px.r = 1;
+    px.g = 1;
+    px.b = 1;
+    px.a = Math.min(1, a);
+  });
+  texture.hasAlpha = true;
+  return texture;
+}
+
+/** A small hard-cored point of light, for sparks and motes. */
+export function createSparkTexture(scene: Scene, name: string, size: number): DynamicTexture {
+  const half = size / 2;
+  const texture = paint(scene, name, size, false, (x, y, px) => {
+    const d = Math.hypot(x - half + 0.5, y - half + 0.5) / half;
+    const a = Math.pow(1 - clamp(d, 0, 1), 1.2);
+    px.r = 1;
+    px.g = 1;
+    px.b = 1;
+    px.a = a;
+  });
+  texture.hasAlpha = true;
   return texture;
 }

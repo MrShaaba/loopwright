@@ -12,6 +12,9 @@ export interface Prefs {
   view: 'inside' | 'follow';
   endless: boolean;
   playMode: 'game' | 'time' | 'cruise';
+  /** Equipped ball skin and trail ids. */
+  skin: string;
+  trail: string;
 }
 
 function read(key: string): unknown {
@@ -54,6 +57,8 @@ export function loadPrefs(): Partial<Prefs> {
   if (record.playMode === 'game' || record.playMode === 'time' || record.playMode === 'cruise') {
     prefs.playMode = record.playMode;
   }
+  if (typeof record.skin === 'string') prefs.skin = record.skin;
+  if (typeof record.trail === 'string') prefs.trail = record.trail;
   return prefs;
 }
 

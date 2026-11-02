@@ -1,3 +1,4 @@
+import type { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { RideCamera, RideView } from '../camera/RideCamera';
 import { Emitter } from '../events';
@@ -150,6 +151,11 @@ export class RideController {
     this.padCharge = 0;
     this.emitStatus();
     return before;
+  }
+
+  /** Unit direction the ball is travelling in, from the last placed sample. */
+  get heading(): Vector3 {
+    return this.sample.tangent;
   }
 
   /** Effective speed in m/s. */

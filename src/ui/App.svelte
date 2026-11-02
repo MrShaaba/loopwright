@@ -5,6 +5,7 @@
   import HowToPlay from './components/HowToPlay.svelte';
   import Inspector from './components/Inspector.svelte';
   import LoadingScreen from './components/LoadingScreen.svelte';
+  import Locker from './components/Locker.svelte';
   import Pops from './components/Pops.svelte';
   import RideHud from './components/RideHud.svelte';
   import SummaryCard from './components/SummaryCard.svelte';
@@ -12,6 +13,7 @@
   import Toast from './components/Toast.svelte';
   import TopBar from './components/TopBar.svelte';
   import { ui } from './state/game.svelte';
+  import { locker } from './state/locker.svelte';
 
   let canvas: HTMLCanvasElement | undefined = $state();
   let controller: Controller | null = $state(null);
@@ -60,6 +62,9 @@
     {/if}
     {#if ui.howToOpen}
       <HowToPlay close={controller.closeHowToPlay} />
+    {/if}
+    {#if locker.open}
+      <Locker {controller} />
     {/if}
     <Toast />
   </div>

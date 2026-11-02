@@ -13,8 +13,13 @@ import { GameController, type PlayMode } from './game/GameController';
 import { GhostView } from './game/GhostView';
 import { ItemView } from './game/ItemView';
 import { KeyRegistry, type KeyBinding } from './input/Keys';
+import { ProgressTracker } from './progress/ProgressTracker';
+import { isUnlocked } from './progress/unlocks';
 import { Ball } from './ride/Ball';
 import { RideController } from './ride/RideController';
+import { BALL_SKINS, DEFAULT_SKIN_ID, getSkin } from './ride/skins';
+import { Trail } from './ride/Trail';
+import { getTrail, TRAILS } from './ride/trails';
 import { encodeTrack, SHARE_PARAM, shareLink } from './save/codec';
 import { createTrackDoc, parseTrackDoc, type TrackDoc } from './save/schema';
 import { saveTrack } from './save/storage';
@@ -63,6 +68,8 @@ export interface GameEvents {
   theme: ThemeConfig;
   /** A floating score pop, already projected to CSS pixels on the canvas. */
   pop: { kind: 'ring' | 'gem' | 'boost' | 'hazard' | 'miss'; text: string; x: number; y: number };
+  /** The equipped ball skin and trail ids. */
+  cosmetics: { skin: string; trail: string };
 }
 
 interface GameParts {
@@ -78,6 +85,7 @@ interface GameParts {
   floor: Floor;
   tube: TubeView;
   ball: Ball;
+  trail: Trail;
   audio: AudioEngine;
   ride: RideController;
   doc: TrackDoc;
@@ -117,8 +125,10 @@ export class Game {
   readonly floor: Floor;
   readonly tube: TubeView;
   readonly ball: Ball;
+  readonly trail: Trail;
   readonly audio: AudioEngine;
   readonly ride: RideController;
+  readonly tracker = new ProgressTracker();
   readonly edit: EditController;
   readonly items: ItemView;
   readonly ghostView: GhostView;
@@ -148,6 +158,7 @@ export class Game {
     this.floor = parts.floor;
     this.tube = parts.tube;
     this.ball = parts.ball;
+    this.trail = parts.trail;
     this.audio = parts.audio;
     this.ride = parts.ride;
     this.doc = parts.doc;
@@ -165,7 +176,12 @@ export class Game {
       this.items,
       this.audio,
       this.ghostView,
+      this.tracker,
     );
+    this.game.setThemeId(this.theme.id);
+    this.tracker.events.on('unlock', (item) => {
+      this.toast(`Unlocked: ${item.name} ${item.kind}. Press L to open the locker.`);
+    });
     this.game.events.on('pop', (pop) => {
       const point = this.project(pop.position);
       if (point)
@@ -253,6 +269,7 @@ export class Game {
     // The ball fills a lot of the ride view; blooming it would wash out the whole frame.
     atmosphere.glow.addExcludedMesh(ball.mesh);
     atmosphere.glow.addExcludedMesh(ball.halo);
+    const trail = new Trail(scene);
     const audio = new AudioEngine();
     const ride = new RideController(compiled, ball, rideCamera, audio, tube);
 
@@ -273,6 +290,7 @@ export class Game {
       floor,
       tube,
       ball,
+      trail,
       audio,
       ride,
       doc,
@@ -382,6 +400,11 @@ export class Game {
         this.markers.update(dt);
       }
       this.tube.update(dt, this.ride.speed, this.reducedMotion);
+      this.trail.update(
+        this.ball.position,
+        this.ride.heading,
+        this.mode === 'ride' ? this.ride.speed : 0,
+      );
       this.tube.setBall(this.ball.position, this.ball.color);
       this.floor.setBallPosition(this.ball.position);
       this.performance.update(dt);
@@ -563,10 +586,44 @@ export class Game {
     this.floor.restyle(theme.floor, theme.fog, theme.ball);
     this.tube.restyle(theme.tube, theme.fog);
     this.ball.restyle(theme.ball);
+    this.trail.setBallColor(theme.ball.color);
     this.doc = createTrackDoc(this.doc.name, theme.id, this.doc.sections, this.doc.seed);
     this.items.restyle(this.itemPalette());
+    this.game.setThemeId(theme.id);
     this.persist();
     this.events.emit('theme', theme);
+  }
+
+  get skinId(): string {
+    return BALL_SKINS.find((skin) => skin.pattern === this.ball.pattern)?.id ?? DEFAULT_SKIN_ID;
+  }
+
+  get trailId(): string {
+    return this.trail.styleId;
+  }
+
+  /** Equips a ball skin. Locked skins are refused with a toast. */
+  setSkin(id: string): boolean {
+    const skin = getSkin(id);
+    if (!isUnlocked(skin.cost, this.tracker.progress.gems)) {
+      this.toast(`${skin.name} needs ${skin.cost} gems`);
+      return false;
+    }
+    this.ball.setPattern(skin.pattern);
+    this.events.emit('cosmetics', { skin: skin.id, trail: this.trailId });
+    return true;
+  }
+
+  /** Equips a trail. Locked trails are refused with a toast. */
+  setTrail(id: string): boolean {
+    const trail = getTrail(id);
+    if (!TRAILS.includes(trail) || !isUnlocked(trail.cost, this.tracker.progress.gems)) {
+      this.toast(`${trail.name} needs ${trail.cost} gems`);
+      return false;
+    }
+    this.trail.setStyle(trail, this.ball.color);
+    this.events.emit('cosmetics', { skin: this.skinId, trail: trail.id });
+    return true;
   }
 
   private itemPalette(): { ring: Color3; gem: Color3; boost: Color3; hazard: Color3 } {
@@ -673,6 +730,7 @@ export class Game {
         scope: 'edit',
         combo,
         label: 'Ride',
+        when: () => !this.modalOpen(),
         handler: () => this.requestMode('ride'),
       });
       this.keys.bind({
@@ -791,6 +849,8 @@ export class Game {
     for (const dispose of this.disposers) dispose();
     this.edit.dispose();
     this.game.dispose();
+    this.tracker.dispose();
+    this.trail.dispose();
     this.ghostView.dispose();
     this.items.dispose();
     this.markers.dispose();

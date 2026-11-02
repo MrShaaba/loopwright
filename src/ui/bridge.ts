@@ -9,12 +9,19 @@ import {
   markHowToPlaySeen,
   savePrefs,
 } from '../engine/save/storage';
+import type { Progress } from '../engine/progress/progress';
+import { isUnlocked, nextUnlock } from '../engine/progress/unlocks';
+import { BALL_SKINS } from '../engine/ride/skins';
+import { TRAILS } from '../engine/ride/trails';
+import { cssColor } from './skinPreview';
 import { DEFAULT_STARTER_ID, getStarter, STARTERS } from '../engine/starters';
 import { DEFAULT_THEME_ID, getTheme, hasTheme, listThemes } from '../engine/theme';
+import type { ThemeConfig } from '../engine/theme/ThemeConfig';
 import { listSectionDefs } from '../engine/track/sections';
 import type { ParamValue, SectionType } from '../engine/track/sections/types';
 import { edit } from './state/edit.svelte';
 import { ui } from './state/game.svelte';
+import { locker, type LockerTab } from './state/locker.svelte';
 import { play } from './state/play.svelte';
 import { ride } from './state/ride.svelte';
 
@@ -48,6 +55,12 @@ export interface Controller {
   dismissSummary: () => void;
   openHowToPlay: () => void;
   closeHowToPlay: () => void;
+  openLocker: () => void;
+  closeLocker: () => void;
+  toggleLocker: () => void;
+  setLockerTab: (tab: LockerTab) => void;
+  equipSkin: (id: string) => void;
+  equipTrail: (id: string) => void;
   setPlayMode: (mode: 'game' | 'time' | 'cruise') => void;
   toggleItems: () => void;
   reshuffleItems: () => void;
@@ -81,6 +94,43 @@ function applyAccent(accent: { accent: string; accentSoft: string; accentText: s
   root.setProperty('--accent-text', accent.accentText);
 }
 
+function themeSummary(theme: ThemeConfig): typeof ui.theme {
+  const { r, g, b } = theme.ball.color;
+  return { id: theme.id, name: theme.name, tagline: theme.tagline, ball: [r, g, b] };
+}
+
+/** Rebuilds the locker's lists from the lifetime totals. */
+function applyProgress(progress: Progress): void {
+  locker.gems = progress.gems;
+  locker.rings = progress.rings;
+  locker.laps = progress.laps;
+  locker.skins = BALL_SKINS.map((skin) => ({
+    id: skin.id,
+    name: skin.name,
+    description: skin.description,
+    cost: skin.cost,
+    unlocked: isUnlocked(skin.cost, progress.gems),
+    pattern: skin.pattern,
+  }));
+  locker.trails = TRAILS.map((trail) => {
+    const p = trail.particles;
+    const first = p ? (p.color === 'theme' ? ui.theme.ball : p.color) : null;
+    const second = p ? (p.color2 ?? first) : null;
+    return {
+      id: trail.id,
+      name: trail.name,
+      description: trail.description,
+      cost: trail.cost,
+      unlocked: isUnlocked(trail.cost, progress.gems),
+      swatch: first && second ? [cssColor(first), cssColor(second)] : null,
+    };
+  });
+  const next = nextUnlock(progress.gems);
+  locker.next = next
+    ? { name: next.item.name, kind: next.item.kind, remaining: next.remaining }
+    : null;
+}
+
 /** Boots the engine on the canvas and wires its events into the rune state. */
 export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   const starter = getStarter(DEFAULT_STARTER_ID);
@@ -90,7 +140,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   const prefs = loadPrefs();
   const theme = getTheme(hasTheme(doc.theme) ? doc.theme : DEFAULT_THEME_ID);
   applyAccent(theme.ui);
-  ui.theme = { id: theme.id, name: theme.name, tagline: theme.tagline };
+  ui.theme = themeSummary(theme);
   ui.phase = 'loading';
 
   const game = await Game.create(canvas, theme, doc, (progress) => {
@@ -101,7 +151,12 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
   if (prefs.view) game.ride.setView(prefs.view);
   if (prefs.endless !== undefined) game.ride.setEndless(prefs.endless);
   if (prefs.playMode) game.setPlayMode(prefs.playMode);
+  if (prefs.skin) game.setSkin(prefs.skin);
+  if (prefs.trail) game.setTrail(prefs.trail);
   ui.track = game.summary();
+  locker.skin = game.skinId;
+  locker.trail = game.trailId;
+  applyProgress(game.tracker.progress);
 
   const persistPrefs = (): void => {
     savePrefs({
@@ -110,6 +165,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       view: game.ride.camera.view,
       endless: game.ride.endless,
       playMode: game.game.mode,
+      skin: game.skinId,
+      trail: game.trailId,
     });
   };
 
@@ -144,8 +201,14 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     }),
     game.events.on('theme', (next) => {
       applyAccent(next.ui);
-      ui.theme = { id: next.id, name: next.name, tagline: next.tagline };
+      ui.theme = themeSummary(next);
+      applyProgress(game.tracker.progress);
     }),
+    game.events.on('cosmetics', ({ skin, trail }) => {
+      locker.skin = skin;
+      locker.trail = trail;
+    }),
+    game.tracker.events.on('progress', applyProgress),
     game.ride.events.on('status', (status) => {
       ride.speed = status.speed * 3.6;
       ride.baseSpeed = status.baseSpeed * 3.6;
@@ -262,6 +325,31 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     markHowToPlaySeen();
     game.ride.setPaused(false);
   };
+  // The locker pauses a running ride and lets it go again when it closes.
+  let lockerPaused = false;
+  const openLocker = (): void => {
+    if (locker.open) return;
+    locker.open = true;
+    ui.helpOpen = false;
+    lockerPaused = game.mode === 'ride' && !game.ride.paused;
+    if (lockerPaused) game.ride.setPaused(true);
+  };
+  const closeLocker = (): void => {
+    if (!locker.open) return;
+    locker.open = false;
+    if (lockerPaused) game.ride.setPaused(false);
+    lockerPaused = false;
+  };
+  const toggleLocker = (): void => {
+    if (locker.open) closeLocker();
+    else openLocker();
+  };
+  game.keys.bind({
+    scope: 'global',
+    combo: 'KeyL',
+    label: 'Open the locker: skins, trails and achievements',
+    handler: toggleLocker,
+  });
   game.keys.bind({
     scope: 'global',
     combo: 'shift+Slash',
@@ -279,7 +367,8 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     combo: 'Escape',
     label: 'Close the shortcuts panel, or leave the ride',
     handler: () => {
-      if (ui.howToOpen) closeHowToPlay();
+      if (locker.open) closeLocker();
+      else if (ui.howToOpen) closeHowToPlay();
       else if (ui.helpOpen) ui.helpOpen = false;
       else if (edit.addMenuOpen) edit.addMenuOpen = false;
       else if (edit.checksOpen) edit.checksOpen = false;
@@ -288,7 +377,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     },
   });
 
-  game.modalOpen = () => ui.howToOpen;
+  game.modalOpen = () => ui.howToOpen || locker.open;
   for (const combo of ['Enter', 'Space']) {
     game.keys.bind({
       scope: 'ride',
@@ -391,6 +480,18 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
     },
     openHowToPlay,
     closeHowToPlay,
+    openLocker,
+    closeLocker,
+    toggleLocker,
+    setLockerTab: (tab) => {
+      locker.tab = tab;
+    },
+    equipSkin: (id) => {
+      if (game.setSkin(id)) persistPrefs();
+    },
+    equipTrail: (id) => {
+      if (game.setTrail(id)) persistPrefs();
+    },
     steer: (input) => game.ride.setSteer(input),
     setPlayMode: (mode) => {
       game.setPlayMode(mode);

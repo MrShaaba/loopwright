@@ -12,6 +12,8 @@ import {
   type ScoreEntry,
   type SpeedBand,
 } from '../save/scores';
+import type { LapRecord } from '../progress/progress';
+import type { ProgressTracker } from '../progress/ProgressTracker';
 import { GhostRecorder, sampleGhost, type GhostRecording } from './ghost';
 import { loadGhost, saveGhost } from './ghostStore';
 import type { GhostView } from './GhostView';
@@ -114,6 +116,8 @@ export class GameController {
   private ghost: GhostRecording | null = null;
   private bestLapTime: number | null = null;
   private lastSection = -1;
+  private hazardsTotal = 0;
+  private themeId = '';
 
   constructor(
     compiled: CompiledTrack,
@@ -122,6 +126,7 @@ export class GameController {
     private readonly view: ItemView,
     private readonly audio: AudioEngine,
     private readonly ghostView: GhostView,
+    private readonly tracker: ProgressTracker,
   ) {
     this.track = createPhysicsTrack(compiled.frames);
     this.setTrack(compiled, seed);
@@ -134,6 +139,24 @@ export class GameController {
     this.trackKey = key;
     this.refreshTop();
     this.emitStatus();
+  }
+
+  /** The theme the ride is in, remembered with each lap for the world-tour count. */
+  setThemeId(id: string): void {
+    this.themeId = id;
+  }
+
+  private lapRecord(beatGhost: boolean): LapRecord {
+    return {
+      mode: this.mode,
+      stats: { ...this.stats },
+      ringsTotal: this.layout.rings,
+      gemsTotal: this.layout.gems,
+      hazardsTotal: this.hazardsTotal,
+      trackKey: this.trackKey,
+      themeId: this.themeId,
+      beatGhost,
+    };
   }
 
   private refreshTop(): void {
@@ -155,7 +178,10 @@ export class GameController {
       this.onTimeLap(lap, seconds);
       return;
     }
-    if (this.mode !== 'game') return;
+    if (this.mode !== 'game') {
+      this.tracker.lap(this.lapRecord(false));
+      return;
+    }
     const band = speedBand(this.maxMultiplier);
     const entry: ScoreEntry = {
       score: this.stats.score,
@@ -170,6 +196,7 @@ export class GameController {
     const result = this.trackKey
       ? recordScore(bandKey(this.trackKey, band), entry)
       : { rank: null, table: [] };
+    this.tracker.lap(this.lapRecord(false));
     this.events.emit('summary', {
       kind: 'score',
       entry,
@@ -201,6 +228,7 @@ export class GameController {
     };
     const key = `${bandKey(this.trackKey, band)}|time`;
     const result = this.trackKey ? recordLapTime(key, entry) : { rank: null, table: [] };
+    this.tracker.lap(this.lapRecord(this.ghost !== null && result.rank === 1));
     if (this.trackKey && result.rank === 1) {
       saveGhost(
         `${bandKey(this.trackKey, band)}|ghost`,
@@ -230,6 +258,7 @@ export class GameController {
     this.track = createPhysicsTrack(compiled.frames);
     this.sectionCount = compiled.ranges.length;
     this.layout = generateItems(compiled, seed);
+    this.hazardsTotal = this.layout.items.filter((item) => item.kind === 'hazard').length;
     this.view.rebuild(this.layout.items, this.track);
     this.resetRun();
     this.events.emit('layout', this.layout);
@@ -378,6 +407,7 @@ export class GameController {
           this.stats.score += points;
           this.view.hide(item.id);
           this.audio.chime(this.stats.combo);
+          this.tracker.collect(0, 1);
           this.events.emit('pop', { kind: 'ring', text: `+${points}`, position });
         } else if (this.stats.combo > 0) {
           this.stats.combo = 0;
@@ -391,6 +421,7 @@ export class GameController {
           this.stats.score += points;
           this.view.hide(item.id);
           this.audio.sparkle();
+          this.tracker.collect(1, 0);
           this.events.emit('pop', { kind: 'gem', text: `+${points} gem`, position });
         }
         break;
