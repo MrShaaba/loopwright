@@ -12,6 +12,7 @@ import { Emitter } from './events';
 import { GameController, type PlayMode } from './game/GameController';
 import { GhostView } from './game/GhostView';
 import { ItemView } from './game/ItemView';
+import { GamepadInput, rumble } from './input/Gamepad';
 import { KeyRegistry, type KeyBinding } from './input/Keys';
 import { ProgressTracker } from './progress/ProgressTracker';
 import { isUnlocked } from './progress/unlocks';
@@ -71,6 +72,8 @@ export interface GameEvents {
   pop: { kind: 'ring' | 'gem' | 'boost' | 'hazard' | 'miss'; text: string; x: number; y: number };
   /** The equipped ball skin and trail ids. */
   cosmetics: { skin: string; trail: string };
+  /** A gamepad changed a setting the UI keeps in prefs. */
+  padInput: 'multiplier' | 'view';
 }
 
 interface GameParts {
@@ -116,6 +119,7 @@ export function formatLap(seconds: number): string {
 export class Game {
   readonly events = new Emitter<GameEvents>();
   readonly keys = new KeyRegistry();
+  readonly gamepad = new GamepadInput();
   readonly engine: Engine;
   readonly scene: Scene;
   theme: ThemeConfig;
@@ -308,6 +312,7 @@ export class Game {
 
   /** The UI tells the engine when a card is up, so Enter and Space go to the card instead. */
   modalOpen: () => boolean = () => false;
+  private pollGamepad: (dt: number) => void = () => undefined;
 
   /** Starts the render loop and input listeners. */
   start(): void {
@@ -338,22 +343,28 @@ export class Game {
     });
     this.disposers.push(() => this.scene.onPointerObservable.remove(tapObserver));
 
-    // Held keys: Shift boosts, left and right (or A and D) steer around the tube.
+    // Held keys: Shift boosts, left and right (or A and D) steer around the tube. A gamepad
+    // adds to the same inputs every frame, so the two never fight.
     const held = new Set<string>();
+    let shiftHeld = false;
+    let padSteer = 0;
+    let padBoost = false;
     const steerFor = (code: string): number =>
       code === 'ArrowLeft' || code === 'KeyA'
         ? -1
         : code === 'ArrowRight' || code === 'KeyD'
           ? 1
           : 0;
-    const applySteer = (): void => {
-      let input = 0;
+    const applyInputs = (): void => {
+      let input = padSteer;
       for (const code of held) input += steerFor(code);
       this.ride.setSteer(input);
+      this.ride.setBoost(shiftHeld || padBoost);
     };
     const onHeldKey = (event: KeyboardEvent): void => {
       if (event.key === 'Shift') {
-        this.ride.setBoost(event.type === 'keydown');
+        shiftHeld = event.type === 'keydown';
+        applyInputs();
         return;
       }
       if (steerFor(event.code) === 0) return;
@@ -367,20 +378,60 @@ export class Game {
       if (event.type === 'keydown') held.add(event.code);
       else held.delete(event.code);
       if (this.mode === 'ride') event.preventDefault();
-      applySteer();
+      applyInputs();
     };
     const onBlur = (): void => {
       held.clear();
-      this.ride.setBoost(false);
-      this.ride.setSteer(0);
+      shiftHeld = false;
+      applyInputs();
+    };
+    const onPadConnected = (): void => {
+      this.toast('Gamepad connected: stick steers, triggers change speed, A boosts, B rides');
     };
     window.addEventListener('keydown', onHeldKey);
     window.addEventListener('keyup', onHeldKey);
     window.addEventListener('blur', onBlur);
+    window.addEventListener('gamepadconnected', onPadConnected);
     this.disposers.push(() => {
       window.removeEventListener('keydown', onHeldKey);
       window.removeEventListener('keyup', onHeldKey);
       window.removeEventListener('blur', onBlur);
+      window.removeEventListener('gamepadconnected', onPadConnected);
+    });
+    // Polled once a frame: the stick and d-pad steer, the triggers move the multiplier, A boosts,
+    // B does what Enter does, Start pauses and X switches the view.
+    this.pollGamepad = (dt: number): void => {
+      const pad = this.gamepad.poll(dt);
+      const steer = pad?.steer ?? 0;
+      const boost = pad?.boost ?? false;
+      if (steer !== padSteer || boost !== padBoost) {
+        padSteer = steer;
+        padBoost = boost;
+        applyInputs();
+      }
+      if (!pad) return;
+      if (pad.multiplierSteps !== 0 && this.mode === 'ride') {
+        this.ride.setMultiplier(this.ride.multiplier + pad.multiplierSteps * 0.05);
+        this.events.emit('padInput', 'multiplier');
+      }
+      for (const button of pad.justPressed) {
+        if (this.modalOpen()) break;
+        if (button === 'east') {
+          if (this.mode !== 'ride') this.requestMode('ride');
+          else if (this.ride.state.phase === 'complete') this.ride.restart();
+          else this.requestMode('edit');
+        } else if (button === 'start' && this.mode === 'ride') {
+          this.ride.togglePause();
+        } else if (button === 'west' && this.mode === 'ride') {
+          this.ride.cycleView();
+          this.events.emit('padInput', 'view');
+        }
+      }
+    };
+    this.game.events.on('pop', (pop) => {
+      if (pop.kind === 'ring') rumble(0.25, 40);
+      else if (pop.kind === 'hazard') rumble(0.9, 180);
+      else if (pop.kind === 'gem') rumble(0.5, 90);
     });
 
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -395,6 +446,7 @@ export class Game {
 
     this.engine.runRenderLoop(() => {
       const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.1);
+      this.pollGamepad(dt);
       this.edit.flush();
       this.sky.update(dt);
       this.items.update(dt);

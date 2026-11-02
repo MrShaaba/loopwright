@@ -230,6 +230,7 @@ export async function bootGame(canvas: HTMLCanvasElement): Promise<Controller> {
       locker.skin = skin;
       locker.trail = trail;
     }),
+    game.events.on('padInput', () => persistPrefs()),
     game.tracker.events.on('progress', applyProgress),
     game.tracker.events.on('achievement', (achievement) => {
       applyAchievements(game.tracker.earned);

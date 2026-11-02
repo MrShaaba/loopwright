@@ -11,6 +11,15 @@
     { scope: 'ride', title: 'Ride mode' },
   ];
 
+  const gamepad = [
+    ['Left stick or D-pad', 'Steer around the tube'],
+    ['Right trigger', 'Speed multiplier up, left trigger down'],
+    ['A', 'Hold to boost'],
+    ['B', 'Ride, go again, or back to the editor'],
+    ['Start', 'Pause and resume'],
+    ['X', 'Switch between the Inside and Follow views'],
+  ];
+
   const mouse = [
     ['← → or A D', 'Steer around the tube while riding'],
     ['Click the tube', 'Select that section'],
@@ -78,6 +87,17 @@
         <p class="eyebrow">Mouse</p>
         <dl>
           {#each mouse as [action, effect] (action)}
+            <div class="item">
+              <dt><span class="kbd">{action}</span></dt>
+              <dd>{effect}</dd>
+            </div>
+          {/each}
+        </dl>
+      </section>
+      <section>
+        <p class="eyebrow">Gamepad</p>
+        <dl>
+          {#each gamepad as [action, effect] (action)}
             <div class="item">
               <dt><span class="kbd">{action}</span></dt>
               <dd>{effect}</dd>
