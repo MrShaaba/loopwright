@@ -49,6 +49,81 @@ export interface FloorConfig {
   color: Color3;
   /** Grid line colour and spacing in metres; null draws a plain floor. */
   grid: { color: Color3; spacing: number; strength: number } | null;
+  /** Rippling light on the floor, as under water. Omit for none. */
+  caustics?: { color: Color3; strength: number; scale: number };
+}
+
+/** Falling or rising particles around the camera. */
+export interface WeatherConfig {
+  kind: 'snow' | 'bubbles';
+  color: Color3;
+  /** Particles per second. */
+  rate: number;
+  /** Metres across, min and max. */
+  size: [number, number];
+  /** Metres per second along the fall or rise, min and max. */
+  speed: [number, number];
+}
+
+/** Static things scattered on the floor, clear of the track. */
+export interface ScatterConfig {
+  kind: 'pine' | 'kelp';
+  count: number;
+  color: Color3;
+  /** A second colour: snow on the pines, the glow in the kelp. */
+  accent: Color3;
+  /** Least distance from the tube's centre line, metres. */
+  clearance: number;
+  /** How far beyond the track's footprint things may stand, metres. */
+  spread: number;
+  /** Scale range. */
+  scale: [number, number];
+}
+
+/** Small lights strung along the top of the tube. */
+export interface LightStringConfig {
+  colors: Color3[];
+  /** Metres between lights. */
+  spacing: number;
+  /** Height above the tube's top, metres. */
+  lift: number;
+  size: number;
+}
+
+/** Two glowing rails that run beside the tube. */
+export interface RailConfig {
+  left: Color3;
+  right: Color3;
+}
+
+/** A ring of lit buildings far off around the track. */
+export interface SkylineConfig {
+  count: number;
+  /** Distance from the track's centre, min and max, metres. */
+  distance: [number, number];
+  height: [number, number];
+  width: [number, number];
+  body: Color3;
+  /** Warm and cool window colours. */
+  windows: [Color3, Color3];
+}
+
+/** Schools of small swimmers circling near the track. */
+export interface SwimmerConfig {
+  schools: number;
+  perSchool: number;
+  color: Color3;
+  glow: Color3;
+}
+
+/** Decoration a theme adds around the track. All of it is looks only. */
+export interface PropConfig {
+  weather?: WeatherConfig;
+  scatter?: ScatterConfig[];
+  lights?: LightStringConfig;
+  rails?: RailConfig;
+  skyline?: SkylineConfig;
+  swimmers?: SwimmerConfig;
 }
 
 export interface TubeStyle {
@@ -89,4 +164,5 @@ export interface ThemeConfig {
   tube: TubeStyle;
   ball: BallStyle;
   ui: UiAccent;
+  props?: PropConfig;
 }

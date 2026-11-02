@@ -10,7 +10,15 @@ const MAX_NAME_BYTES = 48;
 const MAX_SECTIONS = 64;
 
 /** Theme ids by index. Append only: the index is what the link stores. */
-const THEME_IDS = ['minimal', 'haunted-hollow', 'primeval-valley', 'xeno-reach'] as const;
+const THEME_IDS = [
+  'minimal',
+  'haunted-hollow',
+  'primeval-valley',
+  'xeno-reach',
+  'frostline',
+  'abyss',
+  'neon-district',
+] as const;
 
 class Writer {
   private bytes: number[] = [];

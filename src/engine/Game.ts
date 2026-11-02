@@ -27,6 +27,7 @@ import { Atmosphere } from './scene/Atmosphere';
 import { Floor } from './scene/Floor';
 import { Lighting } from './scene/Lighting';
 import { PerformanceGovernor, type PerformanceSample } from './scene/Performance';
+import { Props } from './scene/Props';
 import { Sky } from './scene/Sky';
 import { getTheme, hasTheme, listThemes, nextThemeId } from './theme';
 import type { ThemeConfig } from './theme/ThemeConfig';
@@ -83,6 +84,7 @@ interface GameParts {
   rideCamera: RideCamera;
   atmosphere: Atmosphere;
   floor: Floor;
+  props: Props;
   tube: TubeView;
   ball: Ball;
   trail: Trail;
@@ -123,6 +125,7 @@ export class Game {
   readonly rideCamera: RideCamera;
   atmosphere: Atmosphere;
   readonly floor: Floor;
+  props: Props;
   readonly tube: TubeView;
   readonly ball: Ball;
   readonly trail: Trail;
@@ -156,6 +159,7 @@ export class Game {
     this.rideCamera = parts.rideCamera;
     this.atmosphere = parts.atmosphere;
     this.floor = parts.floor;
+    this.props = parts.props;
     this.tube = parts.tube;
     this.ball = parts.ball;
     this.trail = parts.trail;
@@ -263,6 +267,7 @@ export class Game {
     const tube = new TubeView(scene, theme.tube, theme.fog);
     const compiled = compileTrack(doc.sections);
     tube.rebuild(compiled);
+    const props = new Props(scene, theme.props, compiled);
 
     await report('Lighting the ball', 0.8);
     const ball = new Ball(scene, theme.ball);
@@ -288,6 +293,7 @@ export class Game {
       rideCamera,
       atmosphere,
       floor,
+      props,
       tube,
       ball,
       trail,
@@ -400,6 +406,9 @@ export class Game {
         this.markers.update(dt);
       }
       this.tube.update(dt, this.ride.speed, this.reducedMotion);
+      this.floor.update(dt);
+      const camera = this.scene.activeCamera;
+      if (camera) this.props.update(dt, camera.globalPosition);
       this.trail.update(
         this.ball.position,
         this.ride.heading,
@@ -434,6 +443,7 @@ export class Game {
     this.doc = createTrackDoc(name, this.doc.theme, sections, this.doc.seed);
     this.compiled = compileTrack(this.doc.sections);
     this.tube.rebuild(this.compiled);
+    this.props.rebuild(this.compiled);
     this.ride.syncTrack(this.compiled);
     this.ride.setTrackKey(encodeTrack(this.doc));
     this.game.setTrack(this.compiled, this.doc.seed);
@@ -584,6 +594,8 @@ export class Game {
       glowExcluded: [...this.sky.glowExcluded, this.ball.mesh, this.ball.halo, this.ghostView.mesh],
     });
     this.floor.restyle(theme.floor, theme.fog, theme.ball);
+    this.props.dispose();
+    this.props = new Props(this.scene, theme.props, this.compiled);
     this.tube.restyle(theme.tube, theme.fog);
     this.ball.restyle(theme.ball);
     this.trail.setBallColor(theme.ball.color);
@@ -859,6 +871,7 @@ export class Game {
     this.rideCamera.dispose();
     this.ball.dispose();
     this.tube.dispose();
+    this.props.dispose();
     this.floor.dispose();
     this.atmosphere.dispose();
     this.cameras.dispose();

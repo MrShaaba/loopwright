@@ -1,5 +1,8 @@
+import { abyss } from './abyss';
+import { frostline } from './frostline';
 import { hauntedHollow } from './haunted-hollow';
 import { minimal } from './minimal';
+import { neonDistrict } from './neon-district';
 import { primevalValley } from './primeval-valley';
 import { getTheme, listThemes, registerTheme } from './registry';
 import { xenoReach } from './xeno-reach';
@@ -9,6 +12,9 @@ registerTheme(minimal);
 registerTheme(hauntedHollow);
 registerTheme(primevalValley);
 registerTheme(xenoReach);
+registerTheme(frostline);
+registerTheme(abyss);
+registerTheme(neonDistrict);
 
 export { getTheme, listThemes } from './registry';
 export type { ThemeConfig } from './ThemeConfig';

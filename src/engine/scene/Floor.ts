@@ -34,6 +34,10 @@ uniform vec3 ballColor;
 uniform float ballLight;
 uniform vec3 fogColor;
 uniform float fogDensity;
+uniform vec3 causticColor;
+uniform float causticStrength;
+uniform float causticScale;
+uniform float time;
 
 void main(void) {
   vec2 g = vWorld.xz / gridSpacing;
@@ -48,6 +52,15 @@ void main(void) {
   float d2 = dot(toBall, toBall);
   col += ballColor * (ballLight * 0.1) / (1.0 + d2 * 0.18);
 
+  // Caustics: two drifting interference webs, sharpened, as light through a water surface.
+  if (causticStrength > 0.0) {
+    vec2 p = vWorld.xz * causticScale;
+    float a = sin(p.x * 1.7 + time * 0.6) * sin(p.y * 1.3 - time * 0.5);
+    float b = sin((p.x + p.y) * 1.1 + time * 0.8) * sin((p.x - p.y) * 0.9 + time * 0.4);
+    float web = pow(max(0.0, 1.0 - abs(a + b) * 1.6), 3.0);
+    col += causticColor * web * causticStrength * fade;
+  }
+
   float fog = exp(-pow(dist * fogDensity, 2.0));
   col = mix(fogColor, col, fog);
   gl_FragColor = vec4(col, 1.0);
@@ -58,6 +71,7 @@ void main(void) {
 export class Floor {
   readonly mesh: Mesh;
   private readonly material: ShaderMaterial;
+  private time = 0;
 
   constructor(scene: Scene, config: FloorConfig, fog: FogConfig, ball: BallStyle) {
     this.mesh = CreateGround('floor', { width: FLOOR_SIZE, height: FLOOR_SIZE }, scene);
@@ -82,11 +96,16 @@ export class Floor {
           'ballLight',
           'fogColor',
           'fogDensity',
+          'causticColor',
+          'causticStrength',
+          'causticScale',
+          'time',
         ],
       },
     );
     this.material.backFaceCulling = false;
     this.material.setVector3('ballPos', new Vector3(0, -100, 0));
+    this.material.setFloat('time', 0);
     this.restyle(config, fog, ball);
     this.mesh.material = this.material;
   }
@@ -100,6 +119,14 @@ export class Floor {
     this.material.setFloat('ballLight', ball.light);
     this.material.setColor3('fogColor', fog.color);
     this.material.setFloat('fogDensity', fog.density);
+    this.material.setColor3('causticColor', config.caustics?.color ?? Color3.Black());
+    this.material.setFloat('causticStrength', config.caustics?.strength ?? 0);
+    this.material.setFloat('causticScale', config.caustics?.scale ?? 0.3);
+  }
+
+  update(dt: number): void {
+    this.time += dt;
+    this.material.setFloat('time', this.time);
   }
 
   setBallPosition(position: Vector3): void {
